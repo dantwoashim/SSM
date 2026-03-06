@@ -1,0 +1,8 @@
+node_modules
+.next
+.pglite
+storage
+coverage
+*.log
+.env
+.env.local

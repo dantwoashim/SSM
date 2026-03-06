@@ -1,0 +1,17 @@
+{
+  "name": "identity-go-live-assurance",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @assurance/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "worker": "npm run worker --workspace @assurance/worker",
+    "seed": "npm run seed --workspace @assurance/web"
+  }
+}

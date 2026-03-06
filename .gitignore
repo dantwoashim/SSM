@@ -1,0 +1,10 @@
+node_modules
+.next
+dist
+coverage
+.turbo
+.pglite
+.env
+.env.local
+storage
+*.log

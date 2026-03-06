@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: identity-go-live-assurance-web
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start --workspace @assurance/web
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: APP_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FOUNDER_EMAIL
+        sync: false
+      - key: FOUNDER_PASSWORD
+        sync: false
+      - key: FOUNDER_NAME
+        sync: false
+      - key: NOTIFICATION_EMAIL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: identity-go-live-assurance-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: identity-go-live-assurance-redis
+          property: connectionString
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_REPLY_TO
+        sync: false
+  - type: worker
+    name: identity-go-live-assurance-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm run worker
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: identity-go-live-assurance-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: identity-go-live-assurance-redis
+          property: connectionString
+  - type: keyvalue
+    name: identity-go-live-assurance-redis
+    plan: starter
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+databases:
+  - name: identity-go-live-assurance-db
+    databaseName: assurance
+    plan: starter
