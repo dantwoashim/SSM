@@ -6,6 +6,7 @@ import {
   parseCreateEngagementForm,
   parseLeadForm,
   parseLoginForm,
+  parseManualScenarioForm,
   sanitizeAttachmentFileName,
   validateAttachmentUpload,
 } from "./validation";
@@ -26,11 +27,13 @@ describe("validation helpers", () => {
       buildFormData({
         email: "Owner@Example.com",
         password: "StrongPass123",
+        redirectTo: "/app/engagements/eng_123",
       }),
     );
 
     expect(parsed.email).toBe("owner@example.com");
     expect(parsed.password).toBe("StrongPass123");
+    expect(parsed.redirectTo).toBe("/app/engagements/eng_123");
   });
 
   it("rejects malformed login input", () => {
@@ -92,6 +95,37 @@ describe("validation helpers", () => {
 
     expect(parsed.targetIdp).toBe("okta");
     expect(parsed.claimedFeatures).toEqual(["sp-initiated-sso", "group-role-mapping"]);
+  });
+
+  it("parses a valid manual scenario request", () => {
+    const parsed = parseManualScenarioForm(
+      buildFormData({
+        engagementId: "eng_12345678-1234-1234-1234-123456789abc",
+        title: "Northwind launch exception handling",
+        protocol: "ops",
+        executionMode: "manual",
+        reviewerNotes: "Customer requested explicit cutover validation.",
+      }),
+    );
+
+    expect(parsed.protocol).toBe("ops");
+    expect(parsed.executionMode).toBe("manual");
+  });
+
+  it("rejects impossible calendar dates", () => {
+    expect(() =>
+      parseCreateEngagementForm(
+        buildFormData({
+          title: "Acme <> Northwind Deal Rescue",
+          companyName: "Acme",
+          productUrl: "https://acme.example",
+          targetCustomer: "Northwind",
+          targetIdp: "okta",
+          claimedFeatures: "sp-initiated-sso, group-role-mapping",
+          deadline: "2026-02-30",
+        }),
+      ),
+    ).toThrow(ActionValidationError);
   });
 
   it("sanitizes uploaded filenames for storage keys", () => {

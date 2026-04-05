@@ -1,14 +1,19 @@
 import {
   claimedFeatures,
   idpProviders,
+  scenarioExecutionModes,
+  scenarioProtocols,
   scenarioOutcomes,
   type ClaimedFeature,
   type IdpProvider,
 } from "@assurance/core";
 import { z } from "zod";
+import { isRealDateString } from "./format";
 
 const claimedFeatureSchema = z.enum(claimedFeatures);
 const idpProviderSchema = z.enum(idpProviders);
+const scenarioProtocolSchema = z.enum(scenarioProtocols);
+const scenarioExecutionModeSchema = z.enum(scenarioExecutionModes);
 const scenarioOutcomeSchema = z.enum(scenarioOutcomes);
 
 const idPattern = /^[a-z]+_[0-9a-f-]+$/i;
@@ -26,6 +31,23 @@ export class ActionValidationError extends Error {
 
 function stringValue(formData: FormData, field: string) {
   return formData.get(field)?.toString().trim() || "";
+}
+
+function optionalIdValue(formData: FormData, field: string) {
+  const value = stringValue(formData, field);
+  return value || null;
+}
+
+function safeRedirectTarget(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+
+  return value;
 }
 
 function parseFeatureCsv(value: string) {
@@ -67,17 +89,23 @@ export function parseLoginForm(formData: FormData) {
   const schema = z.object({
     email: z.string().email().max(254),
     password: z.string().min(10).max(128),
+    redirectTo: z.string().max(2048).optional().default(""),
   });
   const result = schema.safeParse({
     email: stringValue(formData, "email").toLowerCase(),
     password: formData.get("password")?.toString() || "",
+    redirectTo: stringValue(formData, "redirectTo"),
   });
 
   if (!result.success) {
     throw makeValidationError(result.error);
   }
 
-  return result.data;
+  return {
+    email: result.data.email,
+    password: result.data.password,
+    redirectTo: safeRedirectTarget(result.data.redirectTo),
+  };
 }
 
 export function parseAcceptInviteForm(formData: FormData) {
@@ -116,7 +144,10 @@ export function parseLeadForm(formData: FormData) {
     authNotes: z.string().max(4000),
     stagingAccessMethod: z.string().min(2).max(200),
     timeline: z.string().min(2).max(200),
-    deadline: z.string().regex(datePattern, "Deadline must be a date."),
+    deadline: z
+      .string()
+      .regex(datePattern, "Deadline must be a date.")
+      .refine(isRealDateString, "Deadline must be a real calendar date."),
     website: z.string().max(0).optional().default(""),
   });
 
@@ -154,7 +185,13 @@ export function parseCreateEngagementForm(formData: FormData) {
     productUrl: z.string().url().max(2048),
     targetCustomer: z.string().min(2).max(120),
     targetIdp: idpProviderSchema,
-    deadline: z.union([z.literal(""), z.string().regex(datePattern)]),
+    deadline: z.union([
+      z.literal(""),
+      z
+        .string()
+        .regex(datePattern)
+        .refine(isRealDateString, "Deadline must be a real calendar date."),
+    ]),
   });
 
   const result = schema.safeParse({
@@ -199,6 +236,30 @@ export function parseScenarioReviewForm(formData: FormData) {
     engagementId: stringValue(formData, "engagementId"),
     scenarioRunId: stringValue(formData, "scenarioRunId"),
     outcome: stringValue(formData, "outcome"),
+    reviewerNotes: stringValue(formData, "reviewerNotes"),
+  });
+
+  if (!result.success) {
+    throw makeValidationError(result.error);
+  }
+
+  return result.data;
+}
+
+export function parseManualScenarioForm(formData: FormData) {
+  const schema = z.object({
+    engagementId: z.string().regex(idPattern),
+    title: z.string().min(3).max(180),
+    protocol: scenarioProtocolSchema,
+    executionMode: scenarioExecutionModeSchema,
+    reviewerNotes: z.string().max(4000),
+  });
+
+  const result = schema.safeParse({
+    engagementId: stringValue(formData, "engagementId"),
+    title: stringValue(formData, "title"),
+    protocol: stringValue(formData, "protocol"),
+    executionMode: stringValue(formData, "executionMode") || "manual",
     reviewerNotes: stringValue(formData, "reviewerNotes"),
   });
 
@@ -256,6 +317,26 @@ export function parseInviteForm(formData: FormData) {
     engagementId: stringValue(formData, "engagementId"),
     email: stringValue(formData, "email").toLowerCase(),
     name: stringValue(formData, "name"),
+  });
+
+  if (!result.success) {
+    throw makeValidationError(result.error);
+  }
+
+  return result.data;
+}
+
+export function parseAttachmentLinkage(formData: FormData) {
+  const schema = z.object({
+    scenarioRunId: z.string().regex(idPattern).nullable(),
+    findingId: z.string().regex(idPattern).nullable(),
+    reportId: z.string().regex(idPattern).nullable(),
+  });
+
+  const result = schema.safeParse({
+    scenarioRunId: optionalIdValue(formData, "scenarioRunId"),
+    findingId: optionalIdValue(formData, "findingId"),
+    reportId: optionalIdValue(formData, "reportId"),
   });
 
   if (!result.success) {
