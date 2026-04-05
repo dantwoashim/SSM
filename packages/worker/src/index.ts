@@ -42,8 +42,15 @@ async function executeJob(job: AssuranceJob) {
 
 async function main() {
   const redisUrl = process.env.REDIS_URL;
+  const workerPreview = process.env.WORKER_PREVIEW === "1";
 
   if (!redisUrl) {
+    if (!workerPreview) {
+      throw new Error(
+        "REDIS_URL must be configured for worker execution. Set WORKER_PREVIEW=1 only for local preview mode.",
+      );
+    }
+
     console.log("REDIS_URL not set. Running worker in preview mode.");
     console.log(
       "Preview scenarios:",
@@ -55,6 +62,14 @@ async function main() {
     );
     console.log("Preview report:", sampleReportSnapshot.engagementTitle);
     return;
+  }
+
+  if (!webAppUrl) {
+    throw new Error("WEB_APP_URL or APP_URL must be configured for worker execution.");
+  }
+
+  if (!jobExecutorToken) {
+    throw new Error("JOB_EXECUTOR_TOKEN must be configured for worker execution.");
   }
 
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
