@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { acceptInviteAction } from "@/lib/actions/invite-actions";
+import { acceptInviteAndRedirectAction } from "@/lib/actions/invite-actions";
 import { getInviteByToken } from "@/lib/data";
 import { PageHeader } from "@/components/page-header";
 
@@ -23,12 +22,6 @@ export default async function AcceptInvitePage({
     );
   }
 
-  async function action(formData: FormData) {
-    "use server";
-    const target = await acceptInviteAction(formData);
-    redirect(target);
-  }
-
   return (
     <>
       <PageHeader
@@ -36,7 +29,7 @@ export default async function AcceptInvitePage({
         title={`Join ${invite.name} to review the engagement portal.`}
         description={`This invite grants customer access for ${invite.email}. Set a password to activate the account.`}
       />
-      <form className="panel form-shell" action={action}>
+      <form className="form-shell" action={acceptInviteAndRedirectAction}>
         <input type="hidden" name="token" value={token} />
         <div className="field-grid">
           <div className="field">

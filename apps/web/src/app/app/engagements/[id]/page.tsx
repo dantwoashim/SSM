@@ -14,6 +14,7 @@ import {
   listOpenInvitesForEngagement,
   listScenariosForRun,
 } from "@/lib/data";
+import { SubmitButton } from "@/components/submit-button";
 import { formatDate, titleCase } from "@/lib/format";
 import { getCurrentSession } from "@/lib/session";
 import { InviteForm } from "@/components/invite-form";
@@ -113,315 +114,298 @@ export default async function EngagementDetailPage({
     founderView ? await listOpenInvitesForEngagement(detail.engagement.id) : [];
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
-      <section className="panel">
-        <div className="kicker">Engagement overview</div>
+    <div className="detail-grid">
+      {/* Overview */}
+      <section className="detail-section">
         <h2>{detail.engagement.title}</h2>
-        <div className="grid-three">
-          <div className="panel">
-            <div className="kicker">Status</div>
-            <strong>{titleCase(detail.engagement.status)}</strong>
+        <div className="detail-meta">
+          <div className="detail-meta-item">
+            <span className="metric-label">Status</span>
+            <strong className="status-label">{titleCase(detail.engagement.status)}</strong>
           </div>
-          <div className="panel">
-            <div className="kicker">Target customer</div>
+          <div className="detail-meta-item">
+            <span className="metric-label">Target customer</span>
             <strong>{detail.engagement.targetCustomer}</strong>
           </div>
-          <div className="panel">
-            <div className="kicker">Deadline</div>
+          <div className="detail-meta-item">
+            <span className="metric-label">Deadline</span>
             <strong>{formatDate(detail.engagement.deadline)}</strong>
           </div>
         </div>
-        <div className="pill-row">
+        <div className="tag-row">
           {detail.engagement.claimedFeatures.map((feature: string) => (
-            <span className="pill" key={feature}>
+            <span className="tag" key={feature}>
               {feature}
             </span>
           ))}
         </div>
-        <div className="actions">
-          {founderView ? (
-            <>
-              <form action={generateTestPlanAction}>
-                <input type="hidden" name="engagementId" value={detail.engagement.id} />
-                <button className="button-primary" type="submit">
-                  Generate test plan
-                </button>
-              </form>
-              <form action={generateReportAction}>
-                <input type="hidden" name="engagementId" value={detail.engagement.id} />
-                <button className="button-secondary" type="submit">
-                  Draft report
-                </button>
-              </form>
-            </>
-          ) : (
-            <span className="pill">Customer view</span>
-          )}
-        </div>
+        {founderView ? (
+          <div className="actions mt-lg">
+            <form action={generateTestPlanAction}>
+              <input type="hidden" name="engagementId" value={detail.engagement.id} />
+              <SubmitButton pendingLabel="Generating plan...">Generate test plan</SubmitButton>
+            </form>
+            <form action={generateReportAction}>
+              <input type="hidden" name="engagementId" value={detail.engagement.id} />
+              <SubmitButton className="button-secondary" pendingLabel="Drafting report...">
+                Draft report
+              </SubmitButton>
+            </form>
+          </div>
+        ) : (
+          <p className="muted mt-md">Customer view</p>
+        )}
       </section>
 
-      <div className="grid-two">
-        <section className="panel">
-          <div className="kicker">Scenario execution</div>
-          <h3>{detail.latestRun ? detail.latestRun.label : "No test plan yet"}</h3>
-          {!founderView ? (
-            <div className="empty-state">
-              Scenario execution and remediation controls are only visible to founder operators.
-            </div>
-          ) : scenarioRows.length === 0 ? (
-            <div className="empty-state">Generate a test plan to create scenario runs.</div>
-          ) : (
-            <div style={{ display: "grid", gap: "0.75rem" }}>
-              {scenarioRows.map((row) => (
-                <article key={row.id} className="panel">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "1rem",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <strong>{row.definition?.title || row.scenarioId}</strong>
-                      <p className="muted" style={{ marginBottom: "0.5rem" }}>
-                        {row.protocol} / {row.executionMode} / {row.outcome}
-                      </p>
-                    </div>
-                  </div>
-                  <form action={updateScenarioResultAction} style={{ display: "grid", gap: "0.75rem" }}>
-                    <input type="hidden" name="engagementId" value={detail.engagement.id} />
-                    <input type="hidden" name="scenarioRunId" value={row.id} />
-                    <div className="field">
-                      <label htmlFor={`outcome-${row.id}`}>Outcome</label>
-                      <select id={`outcome-${row.id}`} name="outcome" defaultValue={row.outcome}>
-                        <option value="pending">Pending</option>
-                        <option value="passed">Passed</option>
-                        <option value="failed">Failed</option>
-                        <option value="skipped">Skipped</option>
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label htmlFor={`notes-${row.id}`}>Reviewer notes</label>
-                      <textarea
-                        id={`notes-${row.id}`}
-                        name="reviewerNotes"
-                        defaultValue={row.reviewerNotes || ""}
-                      />
-                    </div>
-                    <button className="button-secondary" type="submit">
-                      Save scenario review
-                    </button>
-                  </form>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="panel">
-          <div className="kicker">Findings and report</div>
-          <h3>Open findings</h3>
-          {findingRows.length === 0 ? (
-            <div className="empty-state">
-              No findings yet. Failed scenarios will promote into structured remediation items.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "0.75rem" }}>
-              {findingRows.map((finding) => (
-                <article key={finding.id} className="panel">
-                  <strong className={`severity-${finding.severity}`}>{finding.title}</strong>
-                  <p className="muted">{finding.summary}</p>
-                  <p>{finding.remediation}</p>
-                  <div className="kicker">{titleCase(finding.status)}</div>
-                </article>
-              ))}
-            </div>
-          )}
-
-          <div style={{ marginTop: "1rem" }}>
-            <h3>Latest report</h3>
-            {latestReport ? (
-              <div className="panel">
-                <p>{latestReport.executiveSummary}</p>
-                <div className="pill-row">
-                  <span className="pill">v{latestReport.version}</span>
-                  <span className="pill">Readiness {latestReport.readinessScore}/100</span>
-                  <span className="pill">{latestReport.status}</span>
-                </div>
-                <div className="actions">
-                  <Link className="button-secondary" href={`/api/reports/${latestReport.id}/pdf`}>
-                    Download PDF
-                  </Link>
-                  {founderView ? (
-                    <form action={publishReportAction}>
-                      <input type="hidden" name="reportId" value={latestReport.id} />
-                      <input type="hidden" name="engagementId" value={detail.engagement.id} />
-                      <button className="button-primary" type="submit">
-                        Publish report
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <div className="empty-state">
-                {founderView ? "No report drafted yet." : "No published report is available yet."}
-              </div>
-            )}
+      {/* Scenario Execution */}
+      <section className="detail-section">
+        <h3>{detail.latestRun ? detail.latestRun.label : "No test plan yet"}</h3>
+        {!founderView ? (
+          <div className="empty-state">
+            Scenario execution controls are only visible to founder operators.
           </div>
-        </section>
-      </div>
-
-      <div className="grid-two">
-        {founderView ? (
-          <section className="panel">
-            <div className="kicker">Automation and queue</div>
-            <h3>Job history</h3>
-            {jobRows.length === 0 ? (
-              <div className="empty-state">No queued jobs have been recorded for this engagement.</div>
-            ) : (
-              <div style={{ display: "grid", gap: "0.75rem" }}>
-                {jobRows.map((job) => (
-                  <article key={job.id} className="panel">
-                    <strong>{titleCase(job.name)}</strong>
-                    <p className="muted">
-                      {titleCase(job.status)} / Updated {formatDate(job.updatedAt)}
-                    </p>
-                    {job.queueId ? <p className="muted">Queue ID: {job.queueId}</p> : null}
-                    {job.error ? <p style={{ color: "var(--danger)" }}>{job.error}</p> : null}
-                    {job.completedAt ? <p className="muted">Completed {formatDate(job.completedAt)}</p> : null}
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+        ) : scenarioRows.length === 0 ? (
+          <div className="empty-state">Generate a test plan to create scenario runs.</div>
         ) : (
-          <section className="panel">
-            <div className="kicker">Engagement status</div>
-            <h3>Customer-safe scope</h3>
-            <div className="empty-state">
-              Internal automation status, queue metadata, and processing errors remain hidden from customer contacts.
-            </div>
-          </section>
-        )}
-
-        <section className="panel">
-          <div className="kicker">Message thread</div>
-          <h3>Customer-safe updates</h3>
-          <form action={addMessageAction} style={{ display: "grid", gap: "0.75rem" }}>
-            <input type="hidden" name="engagementId" value={detail.engagement.id} />
-            {founderView ? (
-              <div className="field">
-                <label htmlFor="visibility">Visibility</label>
-                <select id="visibility" name="visibility" defaultValue="shared">
-                  <option value="shared">Shared</option>
-                  <option value="internal">Internal</option>
-                </select>
+          scenarioRows.map((row) => (
+            <div key={row.id} className="list-item">
+              <div className="list-item-header">
+                <strong>{row.definition?.title || row.scenarioId}</strong>
+                <span className="muted">
+                  {row.protocol} / {row.executionMode} /{" "}
+                  <span className={`status-${row.outcome}`}>{titleCase(row.outcome)}</span>
+                </span>
               </div>
-            ) : (
-              <input type="hidden" name="visibility" value="shared" />
-            )}
-            <div className="field">
-              <label htmlFor="body">Message</label>
-              <textarea id="body" name="body" />
-            </div>
-            <button className="button-secondary" type="submit">
-              Add update
-            </button>
-          </form>
-          <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
-            {messageRows.length === 0 ? (
-              <div className="empty-state">No messages yet.</div>
-            ) : (
-              messageRows.map((message) => (
-                <article key={message.id} className="panel">
-                  <strong>{message.authorName}</strong>
-                  <p className="muted">
-                    {message.visibility} / {formatDate(message.createdAt)}
-                  </p>
-                  <p>{message.body}</p>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
-      <div className="grid-two">
-        <section className="panel">
-          <div className="kicker">Artifacts</div>
-          <h3>Evidence and uploads</h3>
-          <form action={uploadAttachmentAction} style={{ display: "grid", gap: "0.75rem" }}>
-            <input type="hidden" name="engagementId" value={detail.engagement.id} />
-            {founderView ? (
-              <div className="field">
-                <label htmlFor="attachment-visibility">Visibility</label>
-                <select id="attachment-visibility" name="visibility" defaultValue="shared">
-                  <option value="shared">Shared</option>
-                  <option value="internal">Internal</option>
-                </select>
-              </div>
-            ) : (
-              <input type="hidden" name="visibility" value="shared" />
-            )}
-            <div className="field">
-              <label htmlFor="file">Upload artifact</label>
-              <input id="file" name="file" type="file" />
-            </div>
-            <button className="button-secondary" type="submit">
-              Upload
-            </button>
-          </form>
-          <div style={{ display: "grid", gap: "0.75rem", marginTop: "1rem" }}>
-            {attachmentRows.length === 0 ? (
-              <div className="empty-state">No attachments yet.</div>
-            ) : (
-              attachmentRows.map((attachment) => (
-                <article key={attachment.id} className="panel">
-                  <strong>{attachment.fileName}</strong>
-                  <p className="muted">
-                    {attachment.visibility} / {attachment.size} bytes / {formatDate(attachment.createdAt)}
-                  </p>
-                  <Link href={`/api/attachments/${attachment.id}`}>Download</Link>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-
-        {founderView ? (
-          <>
-            <InviteForm engagementId={detail.engagement.id} />
-            <section className="panel">
-              <div className="kicker">Pending invites</div>
-              <h3>Customer contacts not yet activated</h3>
-              {openInvites.length === 0 ? (
-                <div className="empty-state">No pending invites for this engagement.</div>
-              ) : (
-                <div style={{ display: "grid", gap: "0.75rem" }}>
-                  {openInvites.map((invite: { id: string; name: string; email: string; createdAt: string }) => (
-                    <article key={invite.id} className="panel">
-                      <strong>{invite.name}</strong>
-                      <p className="muted">{invite.email}</p>
-                      <p className="muted">Issued {formatDate(invite.createdAt)}</p>
-                    </article>
-                  ))}
+              <form action={updateScenarioResultAction} className="form-fields">
+                <input type="hidden" name="engagementId" value={detail.engagement.id} />
+                <input type="hidden" name="scenarioRunId" value={row.id} />
+                <div className="field-grid">
+                  <div className="field">
+                    <label htmlFor={`outcome-${row.id}`}>Outcome</label>
+                    <select id={`outcome-${row.id}`} name="outcome" defaultValue={row.outcome}>
+                      <option value="pending">Pending</option>
+                      <option value="passed">Passed</option>
+                      <option value="failed">Failed</option>
+                      <option value="skipped">Skipped</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`notes-${row.id}`}>Reviewer notes</label>
+                    <textarea
+                      id={`notes-${row.id}`}
+                      name="reviewerNotes"
+                      defaultValue={row.reviewerNotes || ""}
+                    />
+                  </div>
                 </div>
-              )}
-            </section>
+                <SubmitButton className="button-secondary" pendingLabel="Saving review...">
+                  Save scenario review
+                </SubmitButton>
+              </form>
+            </div>
+          ))
+        )}
+      </section>
+
+      {/* Findings */}
+      <section className="detail-section">
+        <h3>Open findings</h3>
+        {findingRows.length === 0 ? (
+          <div className="empty-state">
+            No findings yet. Failed scenarios promote into structured remediation items.
+          </div>
+        ) : (
+          findingRows.map((finding) => (
+            <div key={finding.id} className="list-item">
+              <div className="list-item-header">
+                <strong className={`severity-${finding.severity}`}>{finding.title}</strong>
+                <span className="status-label">{titleCase(finding.status)}</span>
+              </div>
+              <p className="list-item-body">{finding.summary}</p>
+              <p className="muted">{finding.remediation}</p>
+            </div>
+          ))
+        )}
+      </section>
+
+      {/* Latest Report */}
+      <section className="detail-section">
+        <h3>Latest report</h3>
+        {latestReport ? (
+          <>
+            <p>{latestReport.executiveSummary}</p>
+            <div className="metrics-row metrics-row-compact">
+              <div className="metric">
+                <span className="metric-value">{latestReport.readinessScore}</span>
+                <span className="metric-label">Readiness</span>
+              </div>
+              <div className="metric">
+                <span className="metric-value">v{latestReport.version}</span>
+                <span className="metric-label">Version</span>
+              </div>
+              <div className="metric">
+                <span className="metric-value status-label">{titleCase(latestReport.status)}</span>
+                <span className="metric-label">Status</span>
+              </div>
+            </div>
+            <div className="actions mt-lg">
+              <Link className="button-secondary" href={`/api/reports/${latestReport.id}/pdf`}>
+                Download PDF
+              </Link>
+              {founderView ? (
+                <form action={publishReportAction}>
+                  <input type="hidden" name="reportId" value={latestReport.id} />
+                  <input type="hidden" name="engagementId" value={detail.engagement.id} />
+                  <SubmitButton pendingLabel="Publishing report...">Publish report</SubmitButton>
+                </form>
+              ) : null}
+            </div>
           </>
         ) : (
-          <section className="panel">
-            <div className="kicker">Portal access</div>
-            <h3>Customer scope</h3>
-            <div className="empty-state">
-              Internal notes, draft reports, and internal-only artifacts remain hidden from invited customer contacts.
-            </div>
-          </section>
+          <div className="empty-state">
+            {founderView ? "No report drafted yet." : "No published report is available yet."}
+          </div>
         )}
-      </div>
+      </section>
+
+      {/* Messages */}
+      <section className="detail-section">
+        <h3>Messages</h3>
+        <form action={addMessageAction} className="form-fields">
+          <input type="hidden" name="engagementId" value={detail.engagement.id} />
+          {founderView ? (
+            <div className="field">
+              <label htmlFor="visibility">Visibility</label>
+              <select id="visibility" name="visibility" defaultValue="shared">
+                <option value="shared">Shared</option>
+                <option value="internal">Internal</option>
+              </select>
+            </div>
+          ) : (
+            <input type="hidden" name="visibility" value="shared" />
+          )}
+          <div className="field">
+            <label htmlFor="body">Message</label>
+            <textarea id="body" name="body" />
+          </div>
+          <SubmitButton className="button-secondary" pendingLabel="Posting update...">
+            Add update
+          </SubmitButton>
+        </form>
+        {messageRows.length === 0 ? (
+          <div className="empty-state">No messages yet.</div>
+        ) : (
+          <div className="activity-feed">
+            {messageRows.map((message) => (
+              <div key={message.id} className="activity-item">
+                <strong>{message.authorName}</strong>
+                <span className="activity-meta">
+                  {message.visibility} / {formatDate(message.createdAt)}
+                </span>
+                <p className="list-item-body">{message.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Artifacts */}
+      <section className="detail-section">
+        <h3>Evidence and uploads</h3>
+        <form action={uploadAttachmentAction} className="form-fields">
+          <input type="hidden" name="engagementId" value={detail.engagement.id} />
+          {founderView ? (
+            <div className="field">
+              <label htmlFor="attachment-visibility">Visibility</label>
+              <select id="attachment-visibility" name="visibility" defaultValue="shared">
+                <option value="shared">Shared</option>
+                <option value="internal">Internal</option>
+              </select>
+            </div>
+          ) : (
+            <input type="hidden" name="visibility" value="shared" />
+          )}
+          <div className="field">
+            <label htmlFor="file">Upload artifact</label>
+            <input
+              id="file"
+              name="file"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,.zip,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/csv,application/json,application/zip"
+            />
+          </div>
+          <SubmitButton className="button-secondary" pendingLabel="Uploading...">
+            Upload
+          </SubmitButton>
+        </form>
+        {attachmentRows.length === 0 ? (
+          <div className="empty-state">No attachments yet.</div>
+        ) : (
+          <div className="activity-feed">
+            {attachmentRows.map((attachment) => (
+              <div key={attachment.id} className="activity-item">
+                <strong>{attachment.fileName}</strong>
+                <span className="activity-meta">
+                  {attachment.visibility} / {attachment.size} bytes / {formatDate(attachment.createdAt)}
+                </span>
+                <Link href={`/api/attachments/${attachment.id}`}>Download</Link>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Jobs (founder only) */}
+      {founderView && jobRows.length > 0 ? (
+        <section className="detail-section">
+          <h3>Job history</h3>
+          <div className="activity-feed">
+            {jobRows.map((job) => (
+              <div key={job.id} className="activity-item">
+                <strong>{titleCase(job.name)}</strong>
+                <span className="activity-meta">
+                  {titleCase(job.status)} / Updated {formatDate(job.updatedAt)}
+                  {job.queueId ? ` / Queue ${job.queueId}` : null}
+                  {job.completedAt ? ` / Completed ${formatDate(job.completedAt)}` : null}
+                </span>
+                {job.error ? <p className="error-message">{job.error}</p> : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Invites (founder only) */}
+      {founderView ? (
+        <section className="detail-section">
+          <h3>Customer access</h3>
+          <InviteForm engagementId={detail.engagement.id} />
+          {openInvites.length > 0 ? (
+            <>
+              <h4 className="mt-lg">Pending invites</h4>
+              <div className="activity-feed">
+                {openInvites.map((invite: { id: string; name: string; email: string; createdAt: string }) => (
+                  <div key={invite.id} className="activity-item">
+                    <strong>{invite.name}</strong>
+                    <span className="activity-meta">
+                      {invite.email} / Issued {formatDate(invite.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">No pending invites for this engagement.</div>
+          )}
+        </section>
+      ) : (
+        <section className="detail-section">
+          <h3>Access scope</h3>
+          <div className="empty-state">
+            Internal notes, draft reports, and internal-only artifacts remain hidden from invited customer contacts.
+          </div>
+        </section>
+      )}
     </div>
   );
 }

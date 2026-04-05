@@ -1,18 +1,17 @@
-import { redirect } from "next/navigation";
-import { createEngagementAction } from "@/lib/actions/engagement-actions";
+import { createEngagementAndRedirectAction } from "@/lib/actions/engagement-actions";
+import { SubmitButton } from "@/components/submit-button";
 
-export default function NewEngagementPage() {
-  async function action(formData: FormData) {
-    "use server";
-    const engagement = await createEngagementAction(formData);
-    redirect(`/app/engagements/${engagement.id}`);
-  }
+export default async function NewEngagementPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
+  const resolvedParams = searchParams ? await searchParams : undefined;
 
   return (
-    <section className="panel">
-      <div className="kicker">Founder-created engagement</div>
-      <h2>Open a Deal Rescue engagement manually</h2>
-      <form className="form-shell" action={action}>
+    <section>
+      <h3>Open a Deal Rescue engagement manually</h3>
+      <form className="form-shell" action={createEngagementAndRedirectAction}>
         <div className="field-grid">
           <div className="field">
             <label htmlFor="title">Engagement title</label>
@@ -52,9 +51,8 @@ export default function NewEngagementPage() {
             />
           </div>
         </div>
-        <button className="button-primary" type="submit">
-          Create engagement
-        </button>
+        {resolvedParams?.error ? <p className="error-message">{resolvedParams.error}</p> : null}
+        <SubmitButton pendingLabel="Creating engagement...">Create engagement</SubmitButton>
       </form>
     </section>
   );
