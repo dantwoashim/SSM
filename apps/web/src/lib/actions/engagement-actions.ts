@@ -22,6 +22,7 @@ import { assertSameOriginRequest } from "@/lib/request-context";
 import { storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
+import { logError } from "@/lib/logger";
 import { sendInviteEmail, sendReportPublishedEmail } from "@/lib/email";
 import {
   parseAttachmentLinkage,
@@ -227,12 +228,25 @@ export async function publishReportAction(formData: FormData) {
         recipientName: recipient.name,
         engagementTitle: detail.engagement.title,
         portalUrl,
+      }).catch((error) => {
+        logError("report.notification_failed", error, {
+          engagementId,
+          reportId,
+          recipientEmail: recipient.email,
+        });
+        return {
+          delivered: false,
+          provider: "manual" as const,
+          message: "Report published, but notification email failed for this recipient.",
+          providerMessageId: null,
+        };
       });
       await audit(session.name, "report_notification_processed", "report", reportId, {
         engagementId,
         recipientEmail: recipient.email,
         delivered: delivery.delivered,
         provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId,
       });
     }
   }
@@ -263,16 +277,30 @@ export async function createInviteAction(
           companyName: detail.engagement.companyName,
           engagementTitle: detail.engagement.title,
           inviteUrl: created.inviteUrl,
+        }).catch((error) => {
+          logError("invite.delivery_failed", error, {
+            engagementId,
+            inviteId: created.invite.id,
+            recipientEmail: created.invite.email,
+          });
+          return {
+            delivered: false,
+            provider: "manual" as const,
+            message: "Invite was created, but email delivery failed. Share the invite link manually.",
+            providerMessageId: null,
+          };
         })
       : {
           delivered: false,
           provider: "manual" as const,
           message: "Invite created. Email delivery skipped because the engagement could not be loaded.",
+          providerMessageId: null,
         };
     await audit(session.name, "invite_delivery_processed", "invite", created.invite.id, {
       engagementId,
       delivered: delivery.delivered,
       provider: delivery.provider,
+      providerMessageId: delivery.providerMessageId,
     });
     revalidatePath(`/app/engagements/${engagementId}`);
     return {

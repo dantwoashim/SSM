@@ -7,7 +7,7 @@ const controls = [
   "Local disk storage by default, with S3-compatible signed URL support for production.",
   "Artifact visibility controls so internal-only evidence stays founder-scoped.",
   "Artifact access logs and audit events for engagement creation, invite delivery, and report publication.",
-  "Documented retention, deletion, backup, and incident-response runbooks.",
+  "Operational procedures for retention, backups, and incident response.",
   "Optional transactional email for lead and invite response time without exposing open sign-up.",
 ];
 
