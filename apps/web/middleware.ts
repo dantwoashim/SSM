@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readSessionCookie } from "./src/lib/session";
+import { readSessionTokenPayload } from "./src/lib/session";
 
 const securityHeaders = [
   ["X-Frame-Options", "DENY"],
@@ -25,11 +25,14 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  const session = await readSessionCookie(request.cookies.get("assurance_session")?.value);
+  const session = await readSessionTokenPayload(request.cookies.get("assurance_session")?.value);
 
   if (!session) {
     const url = new URL("/login", request.url);
-    url.searchParams.set("redirectTo", request.nextUrl.pathname);
+    url.searchParams.set(
+      "redirectTo",
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    );
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 

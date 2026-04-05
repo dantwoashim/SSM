@@ -28,6 +28,7 @@ export async function acceptInviteAction(formData: FormData) {
     email: accepted.user.email,
     role: accepted.user.role,
     name: accepted.user.name,
+    sessionVersion: accepted.user.sessionVersion,
   });
 
   return accepted.engagementId ? `/app/engagements/${accepted.engagementId}` : "/app";
