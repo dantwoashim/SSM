@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
@@ -20,17 +20,65 @@ export async function createInvite(input: {
 }) {
   const db = await getDb();
   const token = randomBytes(24).toString("hex");
+  const normalizedEmail = input.email.toLowerCase();
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString();
+  const tokenHash = hashToken(token);
+  const createdAt = now();
+  const [existingOpenInvite] = await db
+    .select()
+    .from(invites)
+    .where(
+      and(
+        eq(invites.email, normalizedEmail),
+        eq(invites.engagementId, input.engagementId),
+        isNull(invites.acceptedAt),
+      ),
+    )
+    .limit(1);
+
+  if (existingOpenInvite) {
+    await db
+      .update(invites)
+      .set({
+        name: input.name,
+        role: input.role,
+        tokenHash,
+        expiresAt,
+        createdBy: input.createdBy,
+        createdAt,
+      })
+      .where(eq(invites.id, existingOpenInvite.id));
+    await audit(input.createdBy, "reissued_invite", "invite", existingOpenInvite.id, {
+      email: normalizedEmail,
+      engagementId: input.engagementId,
+    });
+    assertAppUrlConfigured();
+
+    return {
+      invite: {
+        ...existingOpenInvite,
+        name: input.name,
+        role: input.role,
+        tokenHash,
+        expiresAt,
+        createdBy: input.createdBy,
+        createdAt,
+      },
+      inviteUrl: `${env.appUrl}/accept-invite/${token}`,
+    };
+  }
+
   const invite = {
     id: makeId("invite"),
-    email: input.email.toLowerCase(),
+    email: normalizedEmail,
     name: input.name,
     role: input.role,
     engagementId: input.engagementId,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(),
+    tokenHash,
+    expiresAt,
     acceptedAt: null,
     createdBy: input.createdBy,
-    createdAt: now(),
+    createdAt,
   };
 
   await db.insert(invites).values(invite);
@@ -94,17 +142,14 @@ export async function acceptInvite(input: {
       passwordHash: await bcrypt.hash(input.password, 10),
       name: invite.name,
       role: invite.role,
+      sessionVersion: 1,
       createdAt: now(),
     };
     await db.insert(users).values(user);
   } else {
-    await db
-      .update(users)
-      .set({
-        passwordHash: await bcrypt.hash(input.password, 10),
-        role: invite.role,
-      })
-      .where(eq(users.id, user.id));
+    throw new Error(
+      "An account already exists for this email. Invite a different address or use account linking instead of overwriting credentials.",
+    );
   }
 
   const [existingMembership] = await db
