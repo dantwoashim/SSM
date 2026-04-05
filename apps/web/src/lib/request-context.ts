@@ -14,6 +14,11 @@ export async function getRequestIp() {
   return forwardedFor.split(",")[0]!.trim();
 }
 
+export async function getRequestId() {
+  const requestHeaders = await headers();
+  return requestHeaders.get("x-request-id") || "unknown";
+}
+
 export async function assertSameOriginRequest() {
   const requestHeaders = await headers();
   const origin = requestHeaders.get("origin");
