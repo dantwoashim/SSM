@@ -10,6 +10,7 @@
     "dev": "npm run dev --workspace @assurance/web",
     "build": "npm run lint && npm run typecheck && npm run build:app",
     "build:app": "npm run build --workspaces --if-present",
+    "check:hygiene": "node scripts/check-release-hygiene.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "start": "npm run start --workspace @assurance/web",
