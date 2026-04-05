@@ -6,7 +6,7 @@ import {
   sampleReportSnapshot,
 } from "@assurance/core";
 import { eq } from "drizzle-orm";
-import { getDb } from "./client";
+import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { getEngagementDetail } from "./engagements";
 import { makeId, now } from "./helpers";
@@ -120,30 +120,31 @@ export async function generateReport(engagementId: string, actorName: string) {
 }
 
 export async function publishReport(reportId: string, actorName: string) {
-  const db = await getDb();
-  const [report] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
+  await runInTransaction(async (db) => {
+    const [report] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
 
-  if (!report) {
-    throw new Error("Report not found.");
-  }
+    if (!report) {
+      throw new Error("Report not found.");
+    }
 
-  const timestamp = now();
-  await db
-    .update(reports)
-    .set({
-      status: "published",
-      publishedAt: timestamp,
-    })
-    .where(eq(reports.id, reportId));
-  await db
-    .update(engagements)
-    .set({
-      status: "report-ready",
-      updatedAt: timestamp,
-    })
-    .where(eq(engagements.id, report.engagementId));
-  await audit(actorName, "published_report", "report", reportId, {
-    engagementId: report.engagementId,
+    const timestamp = now();
+    await db
+      .update(reports)
+      .set({
+        status: "published",
+        publishedAt: timestamp,
+      })
+      .where(eq(reports.id, reportId));
+    await db
+      .update(engagements)
+      .set({
+        status: "report-ready",
+        updatedAt: timestamp,
+      })
+      .where(eq(engagements.id, report.engagementId));
+    await audit(actorName, "published_report", "report", reportId, {
+      engagementId: report.engagementId,
+    }, db);
   });
 }
 
