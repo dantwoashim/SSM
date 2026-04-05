@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   addMessageAction,
+  addManualScenarioAction,
   generateReportAction,
   generateTestPlanAction,
   publishReportAction,
@@ -22,10 +23,12 @@ import { InviteForm } from "@/components/invite-form";
 type ScenarioReview = {
   id: string;
   scenarioId: string;
+  title: string | null;
   protocol: string;
   executionMode: string;
   outcome: string;
   reviewerNotes: string | null;
+  evidence: string[];
   definition?: {
     title: string;
   };
@@ -38,6 +41,7 @@ type FindingView = {
   summary: string;
   remediation: string;
   status: string;
+  scenarioRunId: string | null;
 };
 
 type MessageView = {
@@ -54,6 +58,9 @@ type AttachmentView = {
   visibility: string;
   size: number;
   createdAt: string;
+  scenarioRunId: string | null;
+  findingId: string | null;
+  reportId: string | null;
 };
 
 type JobRunView = {
@@ -98,7 +105,10 @@ export default async function EngagementDetailPage({
   const scenarioRows: ScenarioReview[] = detail.latestRun
     ? await listScenariosForRun(detail.latestRun.id)
     : [];
-  const findingRows: FindingView[] = detail.findingRows;
+  const allFindingRows: FindingView[] = detail.findingRows;
+  const findingRows: FindingView[] = allFindingRows.filter(
+    (finding: FindingView) => finding.status === "open",
+  );
   const messageRows: MessageView[] = founderView
     ? detail.messageRows
     : detail.messageRows.filter((message: MessageView) => message.visibility === "shared");
@@ -164,46 +174,98 @@ export default async function EngagementDetailPage({
           <div className="empty-state">
             Scenario execution controls are only visible to founder operators.
           </div>
-        ) : scenarioRows.length === 0 ? (
-          <div className="empty-state">Generate a test plan to create scenario runs.</div>
         ) : (
-          scenarioRows.map((row) => (
-            <div key={row.id} className="list-item">
-              <div className="list-item-header">
-                <strong>{row.definition?.title || row.scenarioId}</strong>
-                <span className="muted">
-                  {row.protocol} / {row.executionMode} /{" "}
-                  <span className={`status-${row.outcome}`}>{titleCase(row.outcome)}</span>
-                </span>
-              </div>
-              <form action={updateScenarioResultAction} className="form-fields">
-                <input type="hidden" name="engagementId" value={detail.engagement.id} />
-                <input type="hidden" name="scenarioRunId" value={row.id} />
-                <div className="field-grid">
-                  <div className="field">
-                    <label htmlFor={`outcome-${row.id}`}>Outcome</label>
-                    <select id={`outcome-${row.id}`} name="outcome" defaultValue={row.outcome}>
-                      <option value="pending">Pending</option>
-                      <option value="passed">Passed</option>
-                      <option value="failed">Failed</option>
-                      <option value="skipped">Skipped</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`notes-${row.id}`}>Reviewer notes</label>
-                    <textarea
-                      id={`notes-${row.id}`}
-                      name="reviewerNotes"
-                      defaultValue={row.reviewerNotes || ""}
-                    />
-                  </div>
+          <>
+            <form action={addManualScenarioAction} className="form-fields">
+              <input type="hidden" name="engagementId" value={detail.engagement.id} />
+              <div className="field-grid">
+                <div className="field">
+                  <label htmlFor="manual-title">Add manual scenario</label>
+                  <input
+                    id="manual-title"
+                    name="title"
+                    placeholder="Northwind IdP-initiated launch edge case"
+                  />
                 </div>
-                <SubmitButton className="button-secondary" pendingLabel="Saving review...">
-                  Save scenario review
-                </SubmitButton>
-              </form>
-            </div>
-          ))
+                <div className="field">
+                  <label htmlFor="manual-protocol">Protocol</label>
+                  <select id="manual-protocol" name="protocol" defaultValue="ops">
+                    <option value="saml">SAML</option>
+                    <option value="oidc">OIDC</option>
+                    <option value="scim">SCIM</option>
+                    <option value="ops">Operational</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="manual-execution-mode">Execution mode</label>
+                  <select id="manual-execution-mode" name="executionMode" defaultValue="manual">
+                    <option value="manual">Manual</option>
+                    <option value="guided">Guided</option>
+                    <option value="automated">Automated</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="manual-reviewer-notes">Initial notes</label>
+                  <textarea
+                    id="manual-reviewer-notes"
+                    name="reviewerNotes"
+                    placeholder="Why this scenario exists, what triggered it, and what evidence is expected."
+                  />
+                </div>
+              </div>
+              <SubmitButton className="button-secondary" pendingLabel="Adding scenario...">
+                Add manual scenario
+              </SubmitButton>
+            </form>
+            {scenarioRows.length === 0 ? (
+              <div className="empty-state">Generate a test plan or add a manual scenario to start execution.</div>
+            ) : (
+              scenarioRows.map((row) => {
+                const scenarioAttachmentCount = attachmentRows.filter(
+                  (attachment) => attachment.scenarioRunId === row.id,
+                ).length;
+
+                return (
+                  <div key={row.id} className="list-item">
+                    <div className="list-item-header">
+                      <strong>{row.title || row.definition?.title || row.scenarioId}</strong>
+                      <span className="muted">
+                        {row.protocol} / {row.executionMode} /{" "}
+                        <span className={`status-${row.outcome}`}>{titleCase(row.outcome)}</span>
+                        {scenarioAttachmentCount > 0 ? ` / ${scenarioAttachmentCount} evidence` : ""}
+                      </span>
+                    </div>
+                    <form action={updateScenarioResultAction} className="form-fields">
+                      <input type="hidden" name="engagementId" value={detail.engagement.id} />
+                      <input type="hidden" name="scenarioRunId" value={row.id} />
+                      <div className="field-grid">
+                        <div className="field">
+                          <label htmlFor={`outcome-${row.id}`}>Outcome</label>
+                          <select id={`outcome-${row.id}`} name="outcome" defaultValue={row.outcome}>
+                            <option value="pending">Pending</option>
+                            <option value="passed">Passed</option>
+                            <option value="failed">Failed</option>
+                            <option value="skipped">Skipped</option>
+                          </select>
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`notes-${row.id}`}>Reviewer notes</label>
+                          <textarea
+                            id={`notes-${row.id}`}
+                            name="reviewerNotes"
+                            defaultValue={row.reviewerNotes || ""}
+                          />
+                        </div>
+                      </div>
+                      <SubmitButton className="button-secondary" pendingLabel="Saving review...">
+                        Save scenario review
+                      </SubmitButton>
+                    </form>
+                  </div>
+                );
+              })
+            )}
+          </>
         )}
       </section>
 
@@ -219,7 +281,12 @@ export default async function EngagementDetailPage({
             <div key={finding.id} className="list-item">
               <div className="list-item-header">
                 <strong className={`severity-${finding.severity}`}>{finding.title}</strong>
-                <span className="status-label">{titleCase(finding.status)}</span>
+                <span className="status-label">
+                  {titleCase(finding.status)}
+                  {attachmentRows.filter((attachment) => attachment.findingId === finding.id).length > 0
+                    ? ` / ${attachmentRows.filter((attachment) => attachment.findingId === finding.id).length} evidence`
+                    : ""}
+                </span>
               </div>
               <p className="list-item-body">{finding.summary}</p>
               <p className="muted">{finding.remediation}</p>
@@ -334,6 +401,43 @@ export default async function EngagementDetailPage({
               accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,.zip,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/csv,application/json,application/zip"
             />
           </div>
+          {founderView ? (
+            <div className="field-grid">
+              <div className="field">
+                <label htmlFor="attachment-scenario-run">Link to scenario</label>
+                <select id="attachment-scenario-run" name="scenarioRunId" defaultValue="">
+                  <option value="">No direct scenario link</option>
+                  {scenarioRows.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.title || row.definition?.title || row.scenarioId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="attachment-finding">Link to finding</label>
+                <select id="attachment-finding" name="findingId" defaultValue="">
+                  <option value="">No direct finding link</option>
+                  {allFindingRows.map((finding) => (
+                    <option key={finding.id} value={finding.id}>
+                      {finding.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="attachment-report">Link to report</label>
+                <select id="attachment-report" name="reportId" defaultValue="">
+                  <option value="">No direct report link</option>
+                  {reportRows.map((report: { id: string; version: number; status: string }) => (
+                    <option key={report.id} value={report.id}>
+                      Report v{report.version} ({report.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
           <SubmitButton className="button-secondary" pendingLabel="Uploading...">
             Upload
           </SubmitButton>
@@ -347,6 +451,9 @@ export default async function EngagementDetailPage({
                 <strong>{attachment.fileName}</strong>
                 <span className="activity-meta">
                   {attachment.visibility} / {attachment.size} bytes / {formatDate(attachment.createdAt)}
+                  {attachment.scenarioRunId ? " / linked scenario" : ""}
+                  {attachment.findingId ? " / linked finding" : ""}
+                  {attachment.reportId ? " / linked report" : ""}
                 </span>
                 <Link href={`/api/attachments/${attachment.id}`}>Download</Link>
               </div>
