@@ -46,7 +46,15 @@ export async function dispatchJob(job: DispatchableAssuranceJob) {
   }
 
   try {
-    const queued = await queue.add(enrichedJob.name, enrichedJob.data);
+    const queued = await queue.add(enrichedJob.name, enrichedJob.data, {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+      removeOnComplete: 100,
+      removeOnFail: 200,
+    });
     await markJobQueued(jobRun.id, queued.id || null);
 
     return {
