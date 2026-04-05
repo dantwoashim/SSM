@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { findReportById, hasEngagementAccess } from "@/lib/data";
+import { audit, findReportById, hasEngagementAccess } from "@/lib/data";
 import { renderReportPdf } from "@/lib/pdf";
 import { getCurrentSession } from "@/lib/session";
+import { sanitizeAttachmentFileName } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -37,12 +38,16 @@ export async function GET(
   }
 
   const bytes = await renderReportPdf(report.reportJson);
+  await audit(session.name, "downloaded_report_pdf", "report", report.id, {
+    engagementId: report.engagementId,
+    status: report.status,
+  });
 
   return new NextResponse(Buffer.from(bytes), {
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${id}.pdf"`,
+      "Content-Disposition": `attachment; filename="${sanitizeAttachmentFileName(`${id}.pdf`)}"`,
     },
   });
 }
