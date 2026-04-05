@@ -1,11 +1,42 @@
+function asRealDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() + 1 !== month
+    || date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
 export function formatDate(value?: string | null) {
   if (!value) {
     return "Not set";
   }
 
+  const parsed = asRealDate(value);
+
+  if (!parsed) {
+    return "Invalid date";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
-  }).format(new Date(value));
+  }).format(parsed);
 }
 
 export function titleCase(value: string) {
@@ -14,4 +45,8 @@ export function titleCase(value: string) {
     .filter(Boolean)
     .map((part) => part[0]!.toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function isRealDateString(value: string) {
+  return !!asRealDate(value);
 }
