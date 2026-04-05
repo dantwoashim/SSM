@@ -130,6 +130,7 @@ export interface ReportSnapshot {
     protocol: ScenarioProtocol;
     outcome: ScenarioOutcome;
     reviewerNotes: string;
+    evidenceCount: number;
   }>;
   findings: Array<{
     title: string;
@@ -137,5 +138,6 @@ export interface ReportSnapshot {
     summary: string;
     remediation: string;
     buyerSafeNote: string;
+    evidenceCount: number;
   }>;
 }
