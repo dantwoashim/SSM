@@ -14,6 +14,15 @@ export interface EmailDeliveryResult {
   message: string;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function hasEmailDeliveryConfig() {
   return !!(env.resendApiKey && env.mailFrom);
 }
@@ -74,9 +83,9 @@ export async function sendInviteEmail(input: {
       "This portal contains assurance updates, artifacts, and published reports for the scoped rollout.",
     ].join("\n"),
     html: `
-      <p>Hi ${input.inviteeName},</p>
-      <p>You have been invited to review the engagement portal for <strong>${input.engagementTitle}</strong>.</p>
-      <p><a href="${input.inviteUrl}">Activate your access</a></p>
+      <p>Hi ${escapeHtml(input.inviteeName)},</p>
+      <p>You have been invited to review the engagement portal for <strong>${escapeHtml(input.engagementTitle)}</strong>.</p>
+      <p><a href="${escapeHtml(input.inviteUrl)}">Activate your access</a></p>
       <p>This portal contains assurance updates, artifacts, and published reports for the scoped rollout.</p>
     `,
   });
@@ -104,12 +113,12 @@ export async function sendLeadNotificationEmail(input: {
     html: `
       <p>A new public intake was submitted.</p>
       <ul>
-        <li><strong>Company:</strong> ${input.companyName}</li>
-        <li><strong>Target customer:</strong> ${input.targetCustomer}</li>
-        <li><strong>Target IdP:</strong> ${input.targetIdp}</li>
-        <li><strong>Deal stage:</strong> ${input.dealStage}</li>
+        <li><strong>Company:</strong> ${escapeHtml(input.companyName)}</li>
+        <li><strong>Target customer:</strong> ${escapeHtml(input.targetCustomer)}</li>
+        <li><strong>Target IdP:</strong> ${escapeHtml(input.targetIdp)}</li>
+        <li><strong>Deal stage:</strong> ${escapeHtml(input.dealStage)}</li>
       </ul>
-      <p><a href="${input.leadUrl}">Open the founder dashboard</a></p>
+      <p><a href="${escapeHtml(input.leadUrl)}">Open the founder dashboard</a></p>
     `,
   });
 }
@@ -130,9 +139,9 @@ export async function sendReportPublishedEmail(input: {
       `Review it here: ${input.portalUrl}`,
     ].join("\n"),
     html: `
-      <p>Hi ${input.recipientName},</p>
-      <p>A new assurance report is available for <strong>${input.engagementTitle}</strong>.</p>
-      <p><a href="${input.portalUrl}">Open the engagement portal</a></p>
+      <p>Hi ${escapeHtml(input.recipientName)},</p>
+      <p>A new assurance report is available for <strong>${escapeHtml(input.engagementTitle)}</strong>.</p>
+      <p><a href="${escapeHtml(input.portalUrl)}">Open the engagement portal</a></p>
     `,
   });
 }
