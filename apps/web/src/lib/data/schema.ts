@@ -31,7 +31,9 @@ export const invites = pgTable("invites", {
   email: text("email").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull(),
-  engagementId: text("engagement_id"),
+  engagementId: text("engagement_id").references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
   tokenHash: text("token_hash").notNull(),
   expiresAt: text("expires_at").notNull(),
   acceptedAt: text("accepted_at"),
@@ -41,8 +43,12 @@ export const invites = pgTable("invites", {
 
 export const engagementMemberships = pgTable("engagement_memberships", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
-  userId: text("user_id").notNull(),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
+  userId: text("user_id").notNull().references(() => users.id, {
+    onDelete: "cascade",
+  }),
   role: text("role").notNull(),
   createdAt: text("created_at").notNull(),
 });
@@ -57,10 +63,14 @@ export const leads = pgTable("leads", {
 
 export const engagements = pgTable("engagements", {
   id: text("id").primaryKey(),
-  leadId: text("lead_id"),
+  leadId: text("lead_id").references(() => leads.id, {
+    onDelete: "set null",
+  }),
   title: text("title").notNull(),
   companyName: text("company_name").notNull(),
-  ownerUserId: text("owner_user_id"),
+  ownerUserId: text("owner_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   status: text("status").$type<EngagementStatus>().notNull(),
   productUrl: text("product_url").notNull(),
   targetCustomer: text("target_customer").notNull(),
@@ -77,7 +87,9 @@ export const engagements = pgTable("engagements", {
 
 export const testRuns = pgTable("test_runs", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
   label: text("label").notNull(),
   status: text("status").notNull(),
   notes: text("notes"),
@@ -88,7 +100,9 @@ export const testRuns = pgTable("test_runs", {
 
 export const jobRuns = pgTable("job_runs", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
   name: text("name").notNull(),
   status: text("status").notNull(),
   queueId: text("queue_id"),
@@ -102,7 +116,9 @@ export const jobRuns = pgTable("job_runs", {
 
 export const scenarioRuns = pgTable("scenario_runs", {
   id: text("id").primaryKey(),
-  testRunId: text("test_run_id").notNull(),
+  testRunId: text("test_run_id").notNull().references(() => testRuns.id, {
+    onDelete: "cascade",
+  }),
   scenarioId: text("scenario_id").notNull(),
   title: text("title"),
   status: text("status").notNull(),
@@ -116,9 +132,15 @@ export const scenarioRuns = pgTable("scenario_runs", {
 
 export const findings = pgTable("findings", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
-  testRunId: text("test_run_id").notNull(),
-  scenarioRunId: text("scenario_run_id"),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
+  testRunId: text("test_run_id").notNull().references(() => testRuns.id, {
+    onDelete: "cascade",
+  }),
+  scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
+    onDelete: "set null",
+  }),
   title: text("title").notNull(),
   severity: text("severity").$type<Severity>().notNull(),
   customerImpact: text("customer_impact").notNull(),
@@ -134,7 +156,9 @@ export const findings = pgTable("findings", {
 
 export const reports = pgTable("reports", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
   version: integer("version").notNull(),
   status: text("status").notNull(),
   executiveSummary: text("executive_summary").notNull(),
@@ -148,7 +172,9 @@ export const reports = pgTable("reports", {
 
 export const messages = pgTable("messages", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
   authorName: text("author_name").notNull(),
   visibility: text("visibility").notNull(),
   body: text("body").notNull(),
@@ -157,10 +183,18 @@ export const messages = pgTable("messages", {
 
 export const attachments = pgTable("attachments", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull(),
-  scenarioRunId: text("scenario_run_id"),
-  findingId: text("finding_id"),
-  reportId: text("report_id"),
+  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+    onDelete: "cascade",
+  }),
+  scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
+    onDelete: "set null",
+  }),
+  findingId: text("finding_id").references(() => findings.id, {
+    onDelete: "set null",
+  }),
+  reportId: text("report_id").references(() => reports.id, {
+    onDelete: "set null",
+  }),
   uploadedBy: text("uploaded_by").notNull(),
   visibility: text("visibility").notNull(),
   fileName: text("file_name").notNull(),
@@ -177,6 +211,17 @@ export const requestLimits = pgTable("request_limits", {
   count: integer("count").notNull(),
   windowStartedAt: text("window_started_at").notNull(),
   updatedAt: text("updated_at").notNull(),
+});
+
+export const workerHeartbeats = pgTable("worker_heartbeats", {
+  id: text("id").primaryKey(),
+  workerName: text("worker_name").notNull().unique(),
+  status: text("status").notNull(),
+  queueName: text("queue_name"),
+  startedAt: text("started_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  stoppedAt: text("stopped_at"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
 });
 
 export const auditLogs = pgTable("audit_logs", {
