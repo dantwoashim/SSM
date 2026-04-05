@@ -13,6 +13,7 @@ export async function GET() {
     const storageConfigured = !!(env.s3.endpoint && env.s3.bucket);
     const jobExecutorConfigured = !!env.jobExecutorToken || !env.redisUrl;
     const storageReady = !isProductionLike() || isLocalProdMode() || storageConfigured;
+    const queueMode = env.redisUrl ? "worker" : "inline";
     const ready = (!env.redisUrl || redis) && jobExecutorConfigured && storageReady;
 
     return NextResponse.json(
@@ -22,6 +23,7 @@ export async function GET() {
         redisConfigured: !!env.redisUrl,
         redis,
         jobExecutorConfigured,
+        queueMode,
         storageConfigured,
         storageReady,
         emailConfigured: emailDeliveryConfigured(),

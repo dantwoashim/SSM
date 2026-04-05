@@ -5,7 +5,7 @@ services:
     plan: starter
     buildCommand: npm install && npm run build
     startCommand: npm run start --workspace @assurance/web
-    healthCheckPath: /api/healthz
+    healthCheckPath: /api/readyz
     envVars:
       - key: APP_URL
         sync: false
@@ -60,6 +60,8 @@ services:
         sync: false
       - key: JOB_EXECUTOR_TOKEN
         sync: false
+      - key: WORKER_PREVIEW
+        value: "0"
   - type: keyvalue
     name: identity-go-live-assurance-redis
     plan: starter
