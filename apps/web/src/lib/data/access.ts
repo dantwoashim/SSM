@@ -1,4 +1,4 @@
-import { desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { engagementMemberships, engagements, findings, invites, jobRuns, leads, reports, users } from "./schema";
 
@@ -33,8 +33,12 @@ export async function listPortalDataForUser(input: {
   const db = await getDb();
 
   if (input.role === "founder") {
-    const leadRows = await db.select().from(leads).limit(10);
-    const engagementRows = await db.select().from(engagements).limit(20);
+    const leadRows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(10);
+    const engagementRows = await db
+      .select()
+      .from(engagements)
+      .orderBy(desc(engagements.updatedAt))
+      .limit(20);
     const openInviteRows = await db
       .select()
       .from(invites)
@@ -80,6 +84,20 @@ export async function listPortalDataForUser(input: {
           .select()
           .from(engagements)
           .where(inArray(engagements.id, engagementIds));
+  const openFindingRows =
+    engagementIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(findings)
+          .where(and(inArray(findings.engagementId, engagementIds), eq(findings.status, "open")));
+  const publishedReportRows =
+    engagementIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(reports)
+          .where(and(inArray(reports.engagementId, engagementIds), eq(reports.status, "published")));
 
   return {
     leads: [],
@@ -87,8 +105,8 @@ export async function listPortalDataForUser(input: {
     openInvites: [],
     recentJobRuns: [],
     activeJobCount: 0,
-    openFindingCount: 0,
-    publishedReportCount: 0,
+    openFindingCount: openFindingRows.length,
+    publishedReportCount: publishedReportRows.length,
   };
 }
 
