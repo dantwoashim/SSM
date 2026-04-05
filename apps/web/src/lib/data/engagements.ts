@@ -6,7 +6,7 @@ import {
   selectScenarios,
 } from "@assurance/core";
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "./client";
+import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import {
@@ -22,70 +22,71 @@ import {
 } from "./schema";
 
 export async function convertLeadToEngagement(leadId: string, ownerName: string) {
-  const db = await getDb();
-  const [existingEngagement] = await db
-    .select()
-    .from(engagements)
-    .where(eq(engagements.leadId, leadId))
-    .limit(1);
+  return runInTransaction(async (db) => {
+    const [existingEngagement] = await db
+      .select()
+      .from(engagements)
+      .where(eq(engagements.leadId, leadId))
+      .limit(1);
 
-  if (existingEngagement) {
-    return existingEngagement;
-  }
+    if (existingEngagement) {
+      return existingEngagement;
+    }
 
-  const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
 
-  if (!lead) {
-    throw new Error("Lead not found.");
-  }
+    if (!lead) {
+      throw new Error("Lead not found.");
+    }
 
-  const timestamp = now();
-  const engagement = {
-    id: makeId("eng"),
-    leadId: lead.id,
-    title: `${lead.intake.companyName} <> ${lead.intake.targetCustomer} Deal Rescue`,
-    companyName: lead.intake.companyName,
-    ownerUserId: null,
-    status: "qualified" as const,
-    productUrl: lead.intake.productUrl,
-    targetCustomer: lead.intake.targetCustomer,
-    deadline: lead.intake.deadline,
-    targetIdp: lead.intake.targetIdp,
-    claimedFeatures: lead.intake.requiredFlows,
-    qualification: {
-      acvPotential: "Need confirmation",
-      urgency: lead.intake.timeline,
-      namedDeadline: lead.intake.deadline,
-      existingSupport: "Claimed in intake",
-      stagingAccessConfirmed: false,
-    },
-    environment: {
-      name: "Primary staging tenant",
-      url: lead.intake.productUrl,
-      stage: "staging" as const,
-    },
-    idpProfile: {
-      provider: lead.intake.targetIdp,
-      profileName: `${lead.intake.targetIdp} primary profile`,
-      notes: lead.intake.authNotes,
-    },
-    intake: lead.intake,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-
-  await db.insert(engagements).values(engagement);
-  await db
-    .update(leads)
-    .set({
-      status: "converted",
+    const timestamp = now();
+    const engagement = {
+      id: makeId("eng"),
+      leadId: lead.id,
+      title: `${lead.intake.companyName} <> ${lead.intake.targetCustomer} Deal Rescue`,
+      companyName: lead.intake.companyName,
+      ownerUserId: null,
+      status: "qualified" as const,
+      productUrl: lead.intake.productUrl,
+      targetCustomer: lead.intake.targetCustomer,
+      deadline: lead.intake.deadline,
+      targetIdp: lead.intake.targetIdp,
+      claimedFeatures: lead.intake.requiredFlows,
+      qualification: {
+        acvPotential: "Need confirmation",
+        urgency: lead.intake.timeline,
+        namedDeadline: lead.intake.deadline,
+        existingSupport: "Claimed in intake",
+        stagingAccessConfirmed: false,
+      },
+      environment: {
+        name: "Primary staging tenant",
+        url: lead.intake.productUrl,
+        stage: "staging" as const,
+      },
+      idpProfile: {
+        provider: lead.intake.targetIdp,
+        profileName: `${lead.intake.targetIdp} primary profile`,
+        notes: lead.intake.authNotes,
+      },
+      intake: lead.intake,
+      createdAt: timestamp,
       updatedAt: timestamp,
-    })
-    .where(eq(leads.id, leadId));
-  await audit(ownerName, "converted_lead", "engagement", engagement.id, {
-    leadId,
+    };
+
+    await db.insert(engagements).values(engagement);
+    await db
+      .update(leads)
+      .set({
+        status: "converted",
+        updatedAt: timestamp,
+      })
+      .where(eq(leads.id, leadId));
+    await audit(ownerName, "converted_lead", "engagement", engagement.id, {
+      leadId,
+    }, db);
+    return engagement;
   });
-  return engagement;
 }
 
 export async function createEngagement(input: {
@@ -214,61 +215,62 @@ export async function getEngagementDetail(engagementId: string) {
 }
 
 export async function generateTestPlan(engagementId: string, actorName: string) {
-  const db = await getDb();
-  const [engagement] = await db
-    .select()
-    .from(engagements)
-    .where(eq(engagements.id, engagementId))
-    .limit(1);
+  return runInTransaction(async (db) => {
+    const [engagement] = await db
+      .select()
+      .from(engagements)
+      .where(eq(engagements.id, engagementId))
+      .limit(1);
 
-  if (!engagement) {
-    throw new Error("Engagement not found.");
-  }
+    if (!engagement) {
+      throw new Error("Engagement not found.");
+    }
 
-  const selected = selectScenarios(engagement.targetIdp, engagement.claimedFeatures);
-  const timestamp = now();
-  const run = {
-    id: makeId("run"),
-    engagementId,
-    label: `Default ${engagement.targetIdp} readiness plan`,
-    status: selected.length === 0 ? "completed" : "running",
-    notes: "Generated from target IdP and claimed features.",
-    scenarioIds: selected.map((scenario) => scenario.scenarioId),
-    createdAt: timestamp,
-    completedAt: selected.length === 0 ? timestamp : null,
-  };
+    const selected = selectScenarios(engagement.targetIdp, engagement.claimedFeatures);
+    const timestamp = now();
+    const run = {
+      id: makeId("run"),
+      engagementId,
+      label: `Default ${engagement.targetIdp} readiness plan`,
+      status: selected.length === 0 ? "completed" : "running",
+      notes: "Generated from target IdP and claimed features.",
+      scenarioIds: selected.map((scenario) => scenario.scenarioId),
+      createdAt: timestamp,
+      completedAt: selected.length === 0 ? timestamp : null,
+    };
 
-  await db.insert(testRuns).values(run);
-  if (selected.length > 0) {
-    await db.insert(scenarioRuns).values(
-      selected.map((scenario) => ({
-        id: makeId("scenario"),
-        testRunId: run.id,
-        scenarioId: scenario.scenarioId,
-        title: scenario.title,
-        status: "queued",
-        outcome: "pending",
-        executionMode: scenario.executionMode,
-        protocol: scenario.protocol,
-        reviewerNotes: "",
-        evidence: [],
+    await db.insert(testRuns).values(run);
+    if (selected.length > 0) {
+      await db.insert(scenarioRuns).values(
+        selected.map((scenario) => ({
+          id: makeId("scenario"),
+          testRunId: run.id,
+          scenarioId: scenario.scenarioId,
+          title: scenario.title,
+          status: "queued",
+          outcome: "pending",
+          executionMode: scenario.executionMode,
+          protocol: scenario.protocol,
+          reviewerNotes: "",
+          evidence: [],
+          updatedAt: timestamp,
+        })),
+      );
+    }
+
+    await db
+      .update(engagements)
+      .set({
+        status: "in-progress",
         updatedAt: timestamp,
-      })),
-    );
-  }
-
-  await db
-    .update(engagements)
-    .set({
-      status: "in-progress",
-      updatedAt: timestamp,
-    })
-    .where(eq(engagements.id, engagementId));
-  await audit(actorName, "generated_test_plan", "test_run", run.id, {
-    engagementId,
-    scenarioCount: selected.length,
+      })
+      .where(eq(engagements.id, engagementId));
+    await audit(actorName, "generated_test_plan", "test_run", run.id, {
+      engagementId,
+      scenarioCount: selected.length,
+    }, db);
+    return run;
   });
-  return run;
 }
 
 export async function addManualScenario(input: {
