@@ -23,6 +23,16 @@ import {
 
 export async function convertLeadToEngagement(leadId: string, ownerName: string) {
   const db = await getDb();
+  const [existingEngagement] = await db
+    .select()
+    .from(engagements)
+    .where(eq(engagements.leadId, leadId))
+    .limit(1);
+
+  if (existingEngagement) {
+    return existingEngagement;
+  }
+
   const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
 
   if (!lead) {
@@ -221,11 +231,11 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
     id: makeId("run"),
     engagementId,
     label: `Default ${engagement.targetIdp} readiness plan`,
-    status: "open",
+    status: selected.length === 0 ? "completed" : "running",
     notes: "Generated from target IdP and claimed features.",
     scenarioIds: selected.map((scenario) => scenario.scenarioId),
     createdAt: timestamp,
-    completedAt: null,
+    completedAt: selected.length === 0 ? timestamp : null,
   };
 
   await db.insert(testRuns).values(run);
@@ -235,6 +245,7 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
         id: makeId("scenario"),
         testRunId: run.id,
         scenarioId: scenario.scenarioId,
+        title: scenario.title,
         status: "queued",
         outcome: "pending",
         executionMode: scenario.executionMode,
@@ -258,6 +269,79 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
     scenarioCount: selected.length,
   });
   return run;
+}
+
+export async function addManualScenario(input: {
+  engagementId: string;
+  title: string;
+  protocol: "saml" | "oidc" | "scim" | "ops";
+  executionMode: "manual" | "guided" | "automated";
+  reviewerNotes: string;
+  actorName: string;
+}) {
+  const db = await getDb();
+  const detail = await getEngagementDetail(input.engagementId);
+
+  if (!detail) {
+    throw new Error("Engagement not found.");
+  }
+
+  let run = detail.latestRun;
+  const timestamp = now();
+
+  if (!run) {
+    run = {
+      id: makeId("run"),
+      engagementId: input.engagementId,
+      label: `Manual ${detail.engagement.targetIdp} review plan`,
+      status: "running",
+      notes: "Created from founder-defined scenario coverage.",
+      scenarioIds: [],
+      createdAt: timestamp,
+      completedAt: null,
+    };
+    await db.insert(testRuns).values(run);
+  }
+
+  const scenarioId = `manual-${makeId("scenario")}`;
+  const scenarioRun = {
+    id: makeId("scenario"),
+    testRunId: run.id,
+    scenarioId,
+    title: input.title,
+    status: "queued",
+    outcome: "pending",
+    executionMode: input.executionMode,
+    protocol: input.protocol,
+    reviewerNotes: input.reviewerNotes,
+    evidence: [],
+    updatedAt: timestamp,
+  };
+
+  await db.insert(scenarioRuns).values(scenarioRun);
+  const mergedScenarioIds = Array.from(new Set([...(run.scenarioIds || []), scenarioId]));
+  await db
+    .update(testRuns)
+    .set({
+      scenarioIds: mergedScenarioIds,
+      status: "running",
+      completedAt: null,
+    })
+    .where(eq(testRuns.id, run.id));
+  await db
+    .update(engagements)
+    .set({
+      status: "in-progress",
+      updatedAt: timestamp,
+    })
+    .where(eq(engagements.id, input.engagementId));
+  await audit(input.actorName, "added_manual_scenario", "scenario_run", scenarioRun.id, {
+    engagementId: input.engagementId,
+    protocol: input.protocol,
+    executionMode: input.executionMode,
+  });
+
+  return scenarioRun;
 }
 
 export async function updateScenarioRunResult(input: {
@@ -360,6 +444,39 @@ export async function updateScenarioRunResult(input: {
       .where(eq(findings.id, existingFinding.id));
   }
 
+  if (input.outcome === "skipped" && existingFinding) {
+    await db
+      .update(findings)
+      .set({
+        status: "resolved",
+        updatedAt: timestamp,
+      })
+      .where(eq(findings.id, existingFinding.id));
+  }
+
+  if (input.outcome === "pending" && existingFinding) {
+    await db
+      .update(findings)
+      .set({
+        status: "pending-review",
+        updatedAt: timestamp,
+      })
+      .where(eq(findings.id, existingFinding.id));
+  }
+
+  const updatedScenarioRuns: Array<typeof scenarioRuns.$inferSelect> = await db
+    .select()
+    .from(scenarioRuns)
+    .where(eq(scenarioRuns.testRunId, testRun.id));
+  const outstandingCount = updatedScenarioRuns.filter((row) => row.outcome === "pending").length;
+  await db
+    .update(testRuns)
+    .set({
+      status: outstandingCount > 0 ? "running" : "completed",
+      completedAt: outstandingCount > 0 ? null : timestamp,
+    })
+    .where(eq(testRuns.id, testRun.id));
+
   await audit(input.actorName, "updated_scenario_run", "scenario_run", scenarioRun.id, {
     outcome: input.outcome,
     engagementId: engagement.id,
@@ -396,11 +513,17 @@ export async function registerAttachment(input: {
   storageKey: string;
   contentType: string;
   size: number;
+  scenarioRunId?: string | null;
+  findingId?: string | null;
+  reportId?: string | null;
 }) {
   const db = await getDb();
   const attachment = {
     id: makeId("attachment"),
     engagementId: input.engagementId,
+    scenarioRunId: input.scenarioRunId || null,
+    findingId: input.findingId || null,
+    reportId: input.reportId || null,
     uploadedBy: input.uploadedBy,
     visibility: input.visibility,
     fileName: input.fileName,
@@ -410,10 +533,33 @@ export async function registerAttachment(input: {
     createdAt: now(),
   };
   await db.insert(attachments).values(attachment);
+  if (attachment.scenarioRunId) {
+    const [scenarioRun] = await db
+      .select()
+      .from(scenarioRuns)
+      .where(eq(scenarioRuns.id, attachment.scenarioRunId))
+      .limit(1);
+
+    if (scenarioRun) {
+      const evidence = Array.isArray(scenarioRun.evidence) ? scenarioRun.evidence : [];
+      if (!evidence.includes(attachment.id)) {
+        await db
+          .update(scenarioRuns)
+          .set({
+            evidence: [...evidence, attachment.id],
+            updatedAt: now(),
+          })
+          .where(eq(scenarioRuns.id, attachment.scenarioRunId));
+      }
+    }
+  }
   await audit(input.uploadedBy, "uploaded_attachment", "attachment", attachment.id, {
     engagementId: input.engagementId,
     fileName: input.fileName,
     visibility: input.visibility,
+    scenarioRunId: input.scenarioRunId || null,
+    findingId: input.findingId || null,
+    reportId: input.reportId || null,
   });
   return attachment;
 }
