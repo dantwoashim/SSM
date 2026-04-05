@@ -1,9 +1,9 @@
-# Security Overview
+# Security overview
 
 ## Baseline controls
 
 - Invite-only portal with signed session cookies
-- Founder-seeded access until a broader invite flow is added
+- Founder-seeded access until the invite flow is broadened
 - Database-backed audit log for lead conversion, report publication, and artifact uploads
 - Local storage fallback with optional S3-compatible signed URLs
 - Documented retention, deletion, backup, and incident procedures

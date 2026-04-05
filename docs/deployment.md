@@ -1,17 +1,17 @@
-# Deployment Notes
+# Deployment notes
 
-## Best zero-budget option
+## Lowest-cost setup
 
-Use local self-hosting plus Cloudflare Tunnel:
+Use local self-hosting with Cloudflare Tunnel:
 
 - [Cloudflare Tunnel Free Deployment](deployment/cloudflare-tunnel-free.md)
 
-## Production baseline
+## Hosted baseline
 
 - Web app deploys as a Node service running the standalone server produced by `next build`
 - Worker deploys as a separate long-running process
 - Postgres is mandatory in production
-- Redis is recommended for BullMQ-backed async work
+- Redis is recommended if you want queued background work
 - S3-compatible artifact storage is required for production uploads
 - Transactional email is optional but strongly recommended for lead and invite response time
 

@@ -1,12 +1,12 @@
 # Identity Go-Live Assurance
 
-Enterprise deals do not usually die because a vendor forgot to add "Supports SAML" to a pricing page.
+Enterprise deals rarely fall apart because a vendor forgot to say "Supports SAML" on a pricing page.
 
-They die because the first real customer rollout finds the parts that never got exercised properly: IdP-initiated login, group-to-role mapping, JIT edge cases, SCIM deprovisioning, duplicate accounts, tenant bleed, certificate rollover, and the hundred small assumptions hiding between "it works in staging" and "the buyer's IAM team trusts it."
+They fall apart when a real customer rollout hits the parts nobody exercised properly: IdP-initiated login, group-to-role mapping, JIT edge cases, SCIM deprovisioning, duplicate accounts, tenant bleed, certificate rollover, and all the assumptions sitting between "it worked in staging" and "the buyer's IAM team signed off."
 
-This repository is a working product for that problem.
+This repository is the product built around that problem.
 
-It is a service-led platform for running named enterprise identity engagements and producing the artifact that actually matters in the deal thread: a buyer-shareable assurance report with scope, evidence, findings, remediation guidance, and a clear readiness signal.
+It is a service-backed application for running named enterprise identity engagements and producing the document that actually gets passed around in the deal thread: an assurance report with scope, evidence, findings, remediation guidance, and a plain readiness signal.
 
 ## What lives here
 
@@ -22,7 +22,7 @@ The repository is split by responsibility, not by buzzwords.
   Background execution path for queued jobs. The system runs fine without it in founder-operated mode, but the hook is there when you want Redis-backed job execution.
 
 - `docs`
-  The operational side of the business: launch runbooks, deployment notes, legal templates, GTM docs, security notes, and the founder-facing setup guides.
+  The short set of docs that still matter in the public repo: deployment notes and security posture.
 
 ## What this product actually does
 
@@ -35,7 +35,7 @@ From a user point of view, the workflow is simple:
 5. The system generates a report and a PDF that can be shared with the buyer.
 6. Customer contacts can be invited into a scoped portal view without exposing internal-only notes or artifacts.
 
-This is not pretending to be a fully autonomous identity testing robot. It is a serious operational tool for a founder or small team running real enterprise readiness work.
+This is not a magic black box. It is an operating tool for a founder or small team doing real enterprise readiness work.
 
 ## Local setup
 
@@ -85,7 +85,7 @@ The application is intentionally tolerant of missing infrastructure in local mod
 - no email provider -> manual link-sharing fallback
 - no S3 -> local file storage
 
-That is deliberate. The point is to let the product operate before the infrastructure budget exists.
+That is intentional. The product should still be usable before the infrastructure budget catches up.
 
 ## Running modes
 
@@ -93,14 +93,13 @@ There are two realistic ways to use this repository.
 
 ### 1. Founder-operated local mode
 
-This is the practical zero-budget path.
+This is the lowest-cost way to run the system.
 
 You run the app on your own machine, optionally expose it through Cloudflare Tunnel, and operate the engagements directly. It is good enough for early pilots and internal validation, as long as you accept the obvious tradeoff: your machine is the server.
 
 Useful references:
 
 - [`docs/deployment/cloudflare-tunnel-free.md`](docs/deployment/cloudflare-tunnel-free.md)
-- [`docs/runbooks/founder-launch-guide.md`](docs/runbooks/founder-launch-guide.md)
 
 Helper scripts:
 
@@ -112,7 +111,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\backup-local-data.ps1
 
 ### 2. Hosted mode
 
-When you are ready to stop using a laptop as the server, this codebase already supports the normal upgrades:
+When you are ready to stop using a laptop as the server, the codebase already supports the usual upgrades:
 
 - Postgres instead of local `PGlite`
 - Redis/BullMQ instead of inline jobs
@@ -138,11 +137,11 @@ npm run worker
 
 ## Notes for visitors evaluating the project
 
-This codebase was built around a very specific commercial reality:
+This codebase was built around a specific commercial reality:
 
 - enterprise identity failures block revenue
 - buyers want proof, not protocol marketing
-- the first useful product is a service with leverage, not a fake "AI platform"
+- the first useful version of this business is a service with software behind it
 
 That is why the strongest parts of the repository are the scenario model, engagement workflow, report structure, access controls, and operating docs. Those are the parts that matter first in a real business.
 
@@ -155,13 +154,12 @@ If you are reading this as an engineer, the design bias is intentional:
 
 ## Documentation worth reading first
 
-- [`docs/runbooks/founder-launch-guide.md`](docs/runbooks/founder-launch-guide.md)
-- [`docs/runbooks/launch-checklist.md`](docs/runbooks/launch-checklist.md)
 - [`docs/deployment.md`](docs/deployment.md)
 - [`docs/deployment/cloudflare-tunnel-free.md`](docs/deployment/cloudflare-tunnel-free.md)
+- [`docs/security/security-overview.md`](docs/security/security-overview.md)
 
 ## Current state
 
-This is a real working product, not a marketing shell.
+This is a working product, not a landing page wrapped around a backlog.
 
-It is also honest about what it is today: a strong service-led system for running enterprise identity assurance engagements, with room to automate more of the execution path over time.
+It is also honest about what it is today: a solid service-backed system for running enterprise identity assurance engagements, with more execution work that can be automated later.

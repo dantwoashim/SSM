@@ -1,17 +1,17 @@
-# Cloudflare Tunnel Free Deployment
+# Cloudflare Tunnel free deployment
 
-This is the best zero-budget path for the current codebase.
+This is the cheapest workable setup for the current codebase.
 
 It keeps the existing Node/Next.js app, local `PGlite` database, local artifact storage, and inline job execution. Cloudflare Tunnel exposes the app publicly over HTTPS without opening inbound ports.
 
-## Why this path
+## Why use this setup
 
 - No paid hosting bill
-- No rewrite to Workers/D1/R2
+- No platform rewrite
 - No Vercel Hobby commercial-use problem
 - Keeps the current app behavior almost unchanged
 
-## Real tradeoffs
+## Tradeoffs
 
 - Your machine must stay on
 - Windows sleep/hibernate must be disabled while serving customers
@@ -38,7 +38,7 @@ FOUNDER_NAME=Your Name
 ALLOW_LOCAL_PROD=1
 ```
 
-Leave these empty for the zero-budget path:
+Leave these empty in this setup:
 
 - `DATABASE_URL`
 - `REDIS_URL`
@@ -115,7 +115,7 @@ This archives:
 - Do not store customer production credentials on this host
 - Keep uploads limited to scoped pilot artifacts until you move to managed storage
 
-## When to upgrade off this path
+## When to move off this setup
 
 Move to paid infrastructure when any of these become true:
 
