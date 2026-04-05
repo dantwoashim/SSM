@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull(),
+  sessionVersion: integer("session_version").notNull(),
   createdAt: text("created_at").notNull(),
 });
 
@@ -103,6 +104,7 @@ export const scenarioRuns = pgTable("scenario_runs", {
   id: text("id").primaryKey(),
   testRunId: text("test_run_id").notNull(),
   scenarioId: text("scenario_id").notNull(),
+  title: text("title"),
   status: text("status").notNull(),
   outcome: text("outcome").notNull(),
   executionMode: text("execution_mode").notNull(),
@@ -156,6 +158,9 @@ export const messages = pgTable("messages", {
 export const attachments = pgTable("attachments", {
   id: text("id").primaryKey(),
   engagementId: text("engagement_id").notNull(),
+  scenarioRunId: text("scenario_run_id"),
+  findingId: text("finding_id"),
+  reportId: text("report_id"),
   uploadedBy: text("uploaded_by").notNull(),
   visibility: text("visibility").notNull(),
   fileName: text("file_name").notNull(),
