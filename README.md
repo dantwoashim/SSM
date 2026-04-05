@@ -1,42 +1,167 @@
 # Identity Go-Live Assurance
 
-Launch-ready starter for a service-led enterprise SSO / SCIM assurance product.
+Enterprise deals do not usually die because a vendor forgot to add "Supports SAML" to a pricing page.
 
-## What is included
+They die because the first real customer rollout finds the parts that never got exercised properly: IdP-initiated login, group-to-role mapping, JIT edge cases, SCIM deprovisioning, duplicate accounts, tenant bleed, certificate rollover, and the hundred small assumptions hiding between "it works in staging" and "the buyer's IAM team trusts it."
 
-- `apps/web`: Next.js marketing site, founder portal, invite-only workflow, intake forms, engagement management, report generation, and PDF export.
-- `packages/core`: shared types, scenario library, report helpers, and sample data.
-- `packages/worker`: BullMQ worker skeleton for future async automation.
-- `docs`: security, GTM, commercial, legal, and operational runbooks needed for launch.
+This repository is a working product for that problem.
 
-## Quick start
+It is a service-led platform for running named enterprise identity engagements and producing the artifact that actually matters in the deal thread: a buyer-shareable assurance report with scope, evidence, findings, remediation guidance, and a clear readiness signal.
 
-1. Copy `.env.example` to `.env.local` in `apps/web`.
-2. Run `npm install`.
-3. Run `npm run seed`.
-4. Run `npm run dev`.
-5. Open `http://localhost:3000`.
+## What lives here
 
-## Demo credentials
+The repository is split by responsibility, not by buzzwords.
 
-Use the seeded founder credentials from `apps/web/.env.example`.
+- `apps/web`
+  The actual product surface. Marketing pages, intake flow, founder portal, customer access, engagement workflow, findings, reports, PDF export, attachments, and invite flow all live here.
 
-## Production notes
+- `packages/core`
+  The domain model. Scenario definitions, identity feature taxonomy, report helpers, scoring, and shared sample data.
 
-- Set `DATABASE_URL` to Postgres or allow the local `PGlite` fallback for development.
-- Set `REDIS_URL` to enable BullMQ-backed job orchestration.
-- Set `JOB_EXECUTOR_TOKEN` on both the web service and worker when queue-backed execution is enabled.
-- Set S3-compatible storage variables to move artifacts off local disk.
-- Set `SESSION_SECRET`, `FOUNDER_EMAIL`, and `FOUNDER_PASSWORD` before deploying production.
-- Set `RESEND_API_KEY`, `MAIL_FROM`, and `MAIL_REPLY_TO` to enable invite and lead-notification emails.
-- Set `WEB_APP_URL` on the worker so it can call the web app's signed internal execution route.
+- `packages/worker`
+  Background execution path for queued jobs. The system runs fine without it in founder-operated mode, but the hook is there when you want Redis-backed job execution.
 
-## Zero-budget launch path
+- `docs`
+  The operational side of the business: launch runbooks, deployment notes, legal templates, GTM docs, security notes, and the founder-facing setup guides.
 
-The best `$0` path for this repo is local self-hosting plus Cloudflare Tunnel. That avoids paid hosting and avoids a rewrite to Cloudflare Workers.
+## What this product actually does
 
-- Guide: [Cloudflare Tunnel Free Deployment](docs/deployment/cloudflare-tunnel-free.md)
-- Full non-technical launch steps: [Founder Launch Guide](docs/runbooks/founder-launch-guide.md)
-- Local app start: `powershell -ExecutionPolicy Bypass -File .\scripts\start-local-prod.ps1`
-- Local tunnel start: `powershell -ExecutionPolicy Bypass -File .\scripts\run-cloudflare-tunnel.ps1`
-- Local backup: `powershell -ExecutionPolicy Bypass -File .\scripts\backup-local-data.ps1`
+From a user point of view, the workflow is simple:
+
+1. A prospect or customer request comes in through intake.
+2. The founder converts that request into an engagement.
+3. The engagement gets a scenario plan based on claimed features and target IdP.
+4. Scenarios are reviewed, findings are recorded, and evidence is attached.
+5. The system generates a report and a PDF that can be shared with the buyer.
+6. Customer contacts can be invited into a scoped portal view without exposing internal-only notes or artifacts.
+
+This is not pretending to be a fully autonomous identity testing robot. It is a serious operational tool for a founder or small team running real enterprise readiness work.
+
+## Local setup
+
+Requirements:
+
+- Node.js 22+
+- npm
+- Windows PowerShell if you want to use the bundled helper scripts
+
+Install and run:
+
+```powershell
+npm install
+Copy-Item apps/web/.env.example apps/web/.env.local
+npm run seed
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+The seed step creates a founder account and demo engagement data so you can inspect the full flow without fabricating records by hand.
+
+## Environment basics
+
+The smallest useful local configuration is in:
+
+- [`apps/web/.env.example`](apps/web/.env.example)
+
+For a local run, the important values are:
+
+- `APP_URL`
+- `SESSION_SECRET`
+- `FOUNDER_EMAIL`
+- `FOUNDER_PASSWORD`
+- `FOUNDER_NAME`
+
+Everything else can stay unset while you are running the founder-operated path.
+
+The application is intentionally tolerant of missing infrastructure in local mode:
+
+- no `DATABASE_URL` -> local `PGlite`
+- no `REDIS_URL` -> inline job execution
+- no email provider -> manual link-sharing fallback
+- no S3 -> local file storage
+
+That is deliberate. The point is to let the product operate before the infrastructure budget exists.
+
+## Running modes
+
+There are two realistic ways to use this repository.
+
+### 1. Founder-operated local mode
+
+This is the practical zero-budget path.
+
+You run the app on your own machine, optionally expose it through Cloudflare Tunnel, and operate the engagements directly. It is good enough for early pilots and internal validation, as long as you accept the obvious tradeoff: your machine is the server.
+
+Useful references:
+
+- [`docs/deployment/cloudflare-tunnel-free.md`](docs/deployment/cloudflare-tunnel-free.md)
+- [`docs/runbooks/founder-launch-guide.md`](docs/runbooks/founder-launch-guide.md)
+
+Helper scripts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local-prod.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\run-cloudflare-tunnel.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\backup-local-data.ps1
+```
+
+### 2. Hosted mode
+
+When you are ready to stop using a laptop as the server, this codebase already supports the normal upgrades:
+
+- Postgres instead of local `PGlite`
+- Redis/BullMQ instead of inline jobs
+- S3-compatible object storage instead of local disk
+- Resend for transactional mail
+- a standalone Next.js build for deployment
+
+You do not need to redesign the application to make that move. You just need to supply the missing infrastructure.
+
+## Common commands
+
+From the repository root:
+
+```powershell
+npm run dev
+npm run seed
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run worker
+```
+
+## Notes for visitors evaluating the project
+
+This codebase was built around a very specific commercial reality:
+
+- enterprise identity failures block revenue
+- buyers want proof, not protocol marketing
+- the first useful product is a service with leverage, not a fake "AI platform"
+
+That is why the strongest parts of the repository are the scenario model, engagement workflow, report structure, access controls, and operating docs. Those are the parts that matter first in a real business.
+
+If you are reading this as an engineer, the design bias is intentional:
+
+- strong domain types
+- founder-usable defaults
+- security and auditability before fancy abstractions
+- infrastructure that can degrade gracefully in local mode
+
+## Documentation worth reading first
+
+- [`docs/runbooks/founder-launch-guide.md`](docs/runbooks/founder-launch-guide.md)
+- [`docs/runbooks/launch-checklist.md`](docs/runbooks/launch-checklist.md)
+- [`docs/deployment.md`](docs/deployment.md)
+- [`docs/deployment/cloudflare-tunnel-free.md`](docs/deployment/cloudflare-tunnel-free.md)
+
+## Current state
+
+This is a real working product, not a marketing shell.
+
+It is also honest about what it is today: a strong service-led system for running enterprise identity assurance engagements, with room to automate more of the execution path over time.
