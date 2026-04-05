@@ -38,6 +38,7 @@ export async function loginAction(formData: FormData) {
       email: user.email,
       role: user.role,
       name: user.name,
+      sessionVersion: user.sessionVersion,
     });
 
     return {
@@ -63,8 +64,17 @@ export async function loginAndRedirectAction(formData: FormData) {
   const result = await loginAction(formData);
 
   if (result.ok) {
-    redirect("/app");
+    redirect((await parseLoginForm(formData)).redirectTo || "/app");
   }
 
-  redirect(`/login?error=${encodeURIComponent(result.error || "Unable to sign in.")}`);
+  const redirectTo = (await parseLoginForm(formData)).redirectTo;
+  const params = new URLSearchParams({
+    error: result.error || "Unable to sign in.",
+  });
+
+  if (redirectTo) {
+    params.set("redirectTo", redirectTo);
+  }
+
+  redirect(`/login?${params.toString()}`);
 }

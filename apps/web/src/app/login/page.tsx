@@ -1,9 +1,11 @@
 import { loginAndRedirectAction } from "@/lib/actions/auth-actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; redirectTo?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : undefined;
 
@@ -13,6 +15,7 @@ export default async function LoginPage({
       <p>Access the assurance portal to manage engagements and reports.</p>
       <form action={loginAndRedirectAction}>
         <div className="form-fields">
+          <input type="hidden" name="redirectTo" value={resolvedParams?.redirectTo || ""} />
           <div className="field">
             <label htmlFor="email">Email</label>
             <input
