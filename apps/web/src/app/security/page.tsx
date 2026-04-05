@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 
+export const dynamic = "force-dynamic";
+
 const controls = [
   "Invite-only portal access with signed sessions.",
   "Local disk storage by default, with S3-compatible signed URL support for production.",

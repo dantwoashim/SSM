@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 
+export const dynamic = "force-dynamic";
+
 const failures = [
   "IdP-initiated login resolves to the wrong tenant.",
   "SCIM deactivate requires a second sync cycle before access is removed.",

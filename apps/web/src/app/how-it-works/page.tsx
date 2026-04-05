@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 
+export const dynamic = "force-dynamic";
+
 const steps = [
   {
     title: "Intake and qualification",

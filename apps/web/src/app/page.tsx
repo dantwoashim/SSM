@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { sampleReportSnapshot, scenarioLibrary } from "@assurance/core";
 
+export const dynamic = "force-dynamic";
+
 const workflow = [
   {
     title: "Intake and qualification",
