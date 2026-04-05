@@ -9,6 +9,35 @@ import IORedis from "ioredis";
 
 const webAppUrl = process.env.WEB_APP_URL || process.env.APP_URL || "";
 const jobExecutorToken = process.env.JOB_EXECUTOR_TOKEN || "";
+const workerName = process.env.WORKER_NAME || `assurance-worker-${process.pid}`;
+
+function logEvent(level: "info" | "warn" | "error", event: string, data: Record<string, unknown> = {}) {
+  const payload = JSON.stringify({
+    level,
+    event,
+    timestamp: new Date().toISOString(),
+    ...data,
+  });
+
+  if (level === "error") {
+    console.error(payload);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn(payload);
+    return;
+  }
+
+  console.info(payload);
+}
+
+function logError(event: string, error: unknown, data: Record<string, unknown> = {}) {
+  logEvent("error", event, {
+    ...data,
+    error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+  });
+}
 
 async function executeJob(job: AssuranceJob) {
   if (!webAppUrl) {
@@ -40,6 +69,31 @@ async function executeJob(job: AssuranceJob) {
   return payload.result ?? {};
 }
 
+async function sendHeartbeat(status: "starting" | "running" | "stopped", metadata: Record<string, unknown> = {}) {
+  if (!webAppUrl || !jobExecutorToken) {
+    return;
+  }
+
+  const response = await fetch(`${webAppUrl.replace(/\/$/, "")}/api/internal/worker/heartbeat`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-job-executor-token": jobExecutorToken,
+    },
+    body: JSON.stringify({
+      workerName,
+      status,
+      queueName: assuranceQueueName,
+      metadata,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Heartbeat failed with status ${response.status}: ${body}`);
+  }
+}
+
 async function main() {
   const redisUrl = process.env.REDIS_URL;
   const workerPreview = process.env.WORKER_PREVIEW === "1";
@@ -51,7 +105,7 @@ async function main() {
       );
     }
 
-    console.log("REDIS_URL not set. Running worker in preview mode.");
+    logEvent("info", "worker.preview", { workerName });
     console.log(
       "Preview scenarios:",
       selectScenarios("entra", [
@@ -73,22 +127,59 @@ async function main() {
   }
 
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+  await sendHeartbeat("starting", { webAppUrl, pid: process.pid });
   const worker = new Worker<AssuranceJob["data"]>(
     assuranceQueueName,
     async (job) => executeJob(job as AssuranceJob),
     { connection: connection as any },
   );
+  const heartbeatInterval = setInterval(() => {
+    void sendHeartbeat("running", { pid: process.pid }).catch((error) => {
+      logError("worker.heartbeat_failed", error, { workerName });
+    });
+  }, 30000);
+  logEvent("info", "worker.started", { workerName, queueName: assuranceQueueName });
 
   worker.on("completed", (job, result) => {
-    console.log(`Completed ${job.name}`, result);
+    logEvent("info", "worker.job_completed", {
+      workerName,
+      jobName: job.name,
+      jobId: job.id,
+      result,
+    });
   });
 
   worker.on("failed", (job, error) => {
-    console.error(`Failed ${job?.name}`, error);
+    logError("worker.job_failed", error, {
+      workerName,
+      jobName: job?.name || "unknown",
+      jobId: job?.id || null,
+    });
+  });
+
+  const shutdown = async (signal: string) => {
+    clearInterval(heartbeatInterval);
+    await sendHeartbeat("stopped", { signal, pid: process.pid }).catch((error) => {
+      logError("worker.shutdown_heartbeat_failed", error, { workerName, signal });
+    });
+    await worker.close().catch((error) => {
+      logError("worker.close_failed", error, { workerName, signal });
+    });
+    await connection.quit().catch((error) => {
+      logError("worker.redis_quit_failed", error, { workerName, signal });
+    });
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
   });
 }
 
 main().catch((error) => {
-  console.error(error);
+  logError("worker.start_failed", error, { workerName });
   process.exit(1);
 });
