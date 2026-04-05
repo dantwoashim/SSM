@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function IntakePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ success?: string; error?: string }>;
+  searchParams?: Promise<{ success?: string; error?: string; warning?: string }>;
 }) {
   const resolvedParams = searchParams ? await searchParams : undefined;
   const success = resolvedParams?.success === "1";
@@ -150,9 +150,12 @@ export default async function IntakePage({
           <p className="error-message">{resolvedParams.error}</p>
         ) : null}
         {success ? (
-          <p className="success-message">
-            Intake received. We will review it and follow up within one business day.
-          </p>
+          <>
+            <p className="success-message">
+              Intake received. We will review it and follow up within one business day.
+            </p>
+            {resolvedParams?.warning ? <p className="muted">{resolvedParams.warning}</p> : null}
+          </>
         ) : null}
         <button type="submit" className="button-primary">
           Submit intake request

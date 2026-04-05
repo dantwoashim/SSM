@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { audit, createLead, enforceRateLimit } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
 import { sendLeadNotificationEmail } from "@/lib/email";
+import { logError } from "@/lib/logger";
 import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
 import { parseLeadForm, validationMessage } from "@/lib/validation";
 
@@ -46,17 +47,38 @@ export async function submitLeadAction(formData: FormData) {
     targetIdp: parsed.targetIdp,
     dealStage: parsed.dealStage,
     leadUrl: `${env.appUrl}/app`,
+  }).catch((error) => {
+    logError("lead.notification_failed", error, { leadId: lead.id });
+    return {
+      delivered: false,
+      provider: "manual" as const,
+      message: "Lead saved, but notification email failed. Check the dashboard manually.",
+      providerMessageId: null,
+    };
   });
   await audit("system", "lead_notification_processed", "lead", lead.id, {
     delivered: delivery.delivered,
     provider: delivery.provider,
+    providerMessageId: delivery.providerMessageId,
   });
+
+  return {
+    deliveryMessage: delivery.message,
+  };
 }
 
 export async function submitLeadAndRedirectAction(formData: FormData) {
   try {
-    await submitLeadAction(formData);
-    redirect("/intake?success=1");
+    const result = await submitLeadAction(formData);
+    const params = new URLSearchParams({
+      success: "1",
+    });
+
+    if (result?.deliveryMessage && !/successfully/i.test(result.deliveryMessage)) {
+      params.set("warning", result.deliveryMessage);
+    }
+
+    redirect(`/intake?${params.toString()}`);
   } catch (error) {
     redirect(`/intake?error=${encodeURIComponent(validationMessage(error))}`);
   }
