@@ -10,3 +10,4 @@ export * from "./rate-limits";
 export * from "./reports";
 export * from "./access";
 export * from "./users";
+export * from "./worker-heartbeats";
