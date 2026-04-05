@@ -1,4 +1,6 @@
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as schema from "./schema";
 import { assertDatabaseConfigured, env } from "../env";
 
@@ -10,6 +12,9 @@ type Migration = {
 let database: any;
 let rawClient: any;
 let initialized: Promise<void> | null = null;
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = path.resolve(moduleDir, "../../../../../");
+const localDatabaseDir = path.join(repositoryRoot, ".pglite");
 
 const migrations: Migration[] = [
   {
@@ -21,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash text NOT NULL,
   name text NOT NULL,
   role text NOT NULL,
+  session_version integer NOT NULL DEFAULT 1,
   created_at text NOT NULL
 );
 
@@ -102,6 +108,7 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
   id text PRIMARY KEY,
   test_run_id text NOT NULL,
   scenario_id text NOT NULL,
+  title text,
   status text NOT NULL,
   outcome text NOT NULL,
   execution_mode text NOT NULL,
@@ -155,6 +162,9 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS attachments (
   id text PRIMARY KEY,
   engagement_id text NOT NULL,
+  scenario_run_id text,
+  finding_id text,
+  report_id text,
   uploaded_by text NOT NULL,
   visibility text NOT NULL DEFAULT 'shared',
   file_name text NOT NULL,
@@ -257,11 +267,56 @@ ON attachments (engagement_id, visibility);
 CREATE INDEX IF NOT EXISTS attachments_storage_key_idx
 ON attachments (storage_key);
 
+CREATE INDEX IF NOT EXISTS attachments_scenario_run_idx
+ON attachments (scenario_run_id);
+
+CREATE INDEX IF NOT EXISTS attachments_finding_idx
+ON attachments (finding_id);
+
+CREATE INDEX IF NOT EXISTS attachments_report_idx
+ON attachments (report_id);
+
 CREATE INDEX IF NOT EXISTS request_limits_route_updated_at_idx
 ON request_limits (route, updated_at);
 
 CREATE INDEX IF NOT EXISTS audit_logs_entity_created_at_idx
 ON audit_logs (entity_type, entity_id, created_at);
+`,
+  },
+  {
+    id: "005_integrity_and_traceability",
+    sql: `
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS scenario_run_id text;
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS finding_id text;
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS report_id text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS engagements_lead_id_unique
+ON engagements (lead_id)
+WHERE lead_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS invites_open_engagement_email_idx
+ON invites (engagement_id, email)
+WHERE accepted_at IS NULL AND engagement_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS attachments_scenario_run_idx
+ON attachments (scenario_run_id);
+
+CREATE INDEX IF NOT EXISTS attachments_finding_idx
+ON attachments (finding_id);
+
+CREATE INDEX IF NOT EXISTS attachments_report_idx
+ON attachments (report_id);
+`,
+  },
+  {
+    id: "006_sessions_and_manual_scenarios",
+    sql: `
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 1;
+ALTER TABLE scenario_runs ADD COLUMN IF NOT EXISTS title text;
+
+UPDATE users
+SET session_version = 1
+WHERE session_version IS NULL OR session_version < 1;
 `,
   },
 ];
@@ -290,8 +345,8 @@ async function applyMigrations() {
         import("@electric-sql/pglite"),
         import("drizzle-orm/pglite"),
       ]);
-      await mkdir(".pglite", { recursive: true });
-      rawClient = new PGlite(".pglite/assurance");
+      await mkdir(localDatabaseDir, { recursive: true });
+      rawClient = new PGlite(path.join(localDatabaseDir, "assurance"));
       database = drizzlePglite(rawClient, { schema });
     }
   }
