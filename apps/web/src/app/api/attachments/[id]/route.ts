@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { findAttachmentById, hasEngagementAccess } from "@/lib/data";
+import { audit, findAttachmentById, hasEngagementAccess } from "@/lib/data";
 import { getArtifactDownload } from "@/lib/storage/provider";
 import { getCurrentSession } from "@/lib/session";
+import { sanitizeAttachmentFileName } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -39,14 +40,25 @@ export async function GET(
   const download = await getArtifactDownload(attachment.storageKey, attachment.contentType);
 
   if (download.type === "redirect") {
+    await audit(session.name, "downloaded_attachment", "attachment", attachment.id, {
+      engagementId: attachment.engagementId,
+      visibility: attachment.visibility,
+      delivery: "redirect",
+    });
     return NextResponse.redirect(download.url);
   }
+
+  await audit(session.name, "downloaded_attachment", "attachment", attachment.id, {
+    engagementId: attachment.engagementId,
+    visibility: attachment.visibility,
+    delivery: "inline",
+  });
 
   return new NextResponse(download.body, {
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       "Content-Type": attachment.contentType,
-      "Content-Disposition": `attachment; filename="${attachment.fileName}"`,
+      "Content-Disposition": `attachment; filename="${sanitizeAttachmentFileName(attachment.fileName)}"`,
     },
   });
 }
