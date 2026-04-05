@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
-import { getDb } from "./client";
+import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import { engagementMemberships, invites, users } from "./schema";
@@ -18,80 +18,81 @@ export async function createInvite(input: {
   engagementId: string;
   createdBy: string;
 }) {
-  const db = await getDb();
-  const token = randomBytes(24).toString("hex");
-  const normalizedEmail = input.email.toLowerCase();
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString();
-  const tokenHash = hashToken(token);
-  const createdAt = now();
-  const [existingOpenInvite] = await db
-    .select()
-    .from(invites)
-    .where(
-      and(
-        eq(invites.email, normalizedEmail),
-        eq(invites.engagementId, input.engagementId),
-        isNull(invites.acceptedAt),
-      ),
-    )
-    .limit(1);
+  return runInTransaction(async (db) => {
+    const token = randomBytes(24).toString("hex");
+    const normalizedEmail = input.email.toLowerCase();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString();
+    const tokenHash = hashToken(token);
+    const createdAt = now();
+    const [existingOpenInvite] = await db
+      .select()
+      .from(invites)
+      .where(
+        and(
+          eq(invites.email, normalizedEmail),
+          eq(invites.engagementId, input.engagementId),
+          isNull(invites.acceptedAt),
+        ),
+      )
+      .limit(1);
 
-  if (existingOpenInvite) {
-    await db
-      .update(invites)
-      .set({
-        name: input.name,
-        role: input.role,
-        tokenHash,
-        expiresAt,
-        createdBy: input.createdBy,
-        createdAt,
-      })
-      .where(eq(invites.id, existingOpenInvite.id));
-    await audit(input.createdBy, "reissued_invite", "invite", existingOpenInvite.id, {
+    if (existingOpenInvite) {
+      await db
+        .update(invites)
+        .set({
+          name: input.name,
+          role: input.role,
+          tokenHash,
+          expiresAt,
+          createdBy: input.createdBy,
+          createdAt,
+        })
+        .where(eq(invites.id, existingOpenInvite.id));
+      await audit(input.createdBy, "reissued_invite", "invite", existingOpenInvite.id, {
+        email: normalizedEmail,
+        engagementId: input.engagementId,
+      }, db);
+      assertAppUrlConfigured();
+
+      return {
+        invite: {
+          ...existingOpenInvite,
+          name: input.name,
+          role: input.role,
+          tokenHash,
+          expiresAt,
+          createdBy: input.createdBy,
+          createdAt,
+        },
+        inviteUrl: `${env.appUrl}/accept-invite/${token}`,
+      };
+    }
+
+    const invite = {
+      id: makeId("invite"),
       email: normalizedEmail,
+      name: input.name,
+      role: input.role,
       engagementId: input.engagementId,
-    });
+      tokenHash,
+      expiresAt,
+      acceptedAt: null,
+      createdBy: input.createdBy,
+      createdAt,
+    };
+
+    await db.insert(invites).values(invite);
+    await audit(input.createdBy, "created_invite", "invite", invite.id, {
+      email: input.email,
+      engagementId: input.engagementId,
+    }, db);
     assertAppUrlConfigured();
 
     return {
-      invite: {
-        ...existingOpenInvite,
-        name: input.name,
-        role: input.role,
-        tokenHash,
-        expiresAt,
-        createdBy: input.createdBy,
-        createdAt,
-      },
+      invite,
       inviteUrl: `${env.appUrl}/accept-invite/${token}`,
     };
-  }
-
-  const invite = {
-    id: makeId("invite"),
-    email: normalizedEmail,
-    name: input.name,
-    role: input.role,
-    engagementId: input.engagementId,
-    tokenHash,
-    expiresAt,
-    acceptedAt: null,
-    createdBy: input.createdBy,
-    createdAt,
-  };
-
-  await db.insert(invites).values(invite);
-  await audit(input.createdBy, "created_invite", "invite", invite.id, {
-    email: input.email,
-    engagementId: input.engagementId,
   });
-  assertAppUrlConfigured();
-
-  return {
-    invite,
-    inviteUrl: `${env.appUrl}/accept-invite/${token}`,
-  };
 }
 
 export async function getInviteByToken(token: string) {
@@ -128,65 +129,66 @@ export async function acceptInvite(input: {
     throw new Error("Invite is invalid or expired.");
   }
 
-  const db = await getDb();
-  let [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, invite.email))
-    .limit(1);
+  return runInTransaction(async (db) => {
+    let [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, invite.email))
+      .limit(1);
 
-  if (!user) {
-    user = {
-      id: makeId("user"),
-      email: invite.email,
-      passwordHash: await bcrypt.hash(input.password, 10),
-      name: invite.name,
-      role: invite.role,
-      sessionVersion: 1,
-      createdAt: now(),
-    };
-    await db.insert(users).values(user);
-  } else {
-    throw new Error(
-      "An account already exists for this email. Invite a different address or use account linking instead of overwriting credentials.",
-    );
-  }
+    if (!user) {
+      user = {
+        id: makeId("user"),
+        email: invite.email,
+        passwordHash: await bcrypt.hash(input.password, 10),
+        name: invite.name,
+        role: invite.role,
+        sessionVersion: 1,
+        createdAt: now(),
+      };
+      await db.insert(users).values(user);
+    } else {
+      throw new Error(
+        "An account already exists for this email. Invite a different address or use account linking instead of overwriting credentials.",
+      );
+    }
 
-  const [existingMembership] = await db
-    .select()
-    .from(engagementMemberships)
-    .where(
-      and(
-        eq(engagementMemberships.engagementId, invite.engagementId || ""),
-        eq(engagementMemberships.userId, user.id),
-      ),
-    )
-    .limit(1);
+    const [existingMembership] = await db
+      .select()
+      .from(engagementMemberships)
+      .where(
+        and(
+          eq(engagementMemberships.engagementId, invite.engagementId || ""),
+          eq(engagementMemberships.userId, user.id),
+        ),
+      )
+      .limit(1);
 
-  if (!existingMembership && invite.engagementId) {
-    await db.insert(engagementMemberships).values({
-      id: makeId("membership"),
+    if (!existingMembership && invite.engagementId) {
+      await db.insert(engagementMemberships).values({
+        id: makeId("membership"),
+        engagementId: invite.engagementId,
+        userId: user.id,
+        role: "viewer",
+        createdAt: now(),
+      });
+    }
+
+    await db
+      .update(invites)
+      .set({
+        acceptedAt: now(),
+      })
+      .where(eq(invites.id, invite.id));
+
+    await audit(invite.name, "accepted_invite", "invite", invite.id, {
       engagementId: invite.engagementId,
-      userId: user.id,
-      role: "viewer",
-      createdAt: now(),
-    });
-  }
+      email: invite.email,
+    }, db);
 
-  await db
-    .update(invites)
-    .set({
-      acceptedAt: now(),
-    })
-    .where(eq(invites.id, invite.id));
-
-  await audit(invite.name, "accepted_invite", "invite", invite.id, {
-    engagementId: invite.engagementId,
-    email: invite.email,
+    return {
+      user,
+      engagementId: invite.engagementId,
+    };
   });
-
-  return {
-    user,
-    engagementId: invite.engagementId,
-  };
 }
