@@ -3,6 +3,8 @@ import { findAttachmentById, hasEngagementAccess } from "@/lib/data";
 import { getArtifactDownload } from "@/lib/storage/provider";
 import { getCurrentSession } from "@/lib/session";
 
+export const runtime = "nodejs";
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -42,6 +44,7 @@ export async function GET(
 
   return new NextResponse(download.body, {
     headers: {
+      "Cache-Control": "private, no-store, max-age=0",
       "Content-Type": attachment.contentType,
       "Content-Disposition": `attachment; filename="${attachment.fileName}"`,
     },

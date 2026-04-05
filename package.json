@@ -8,8 +8,12 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @assurance/web",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run lint && npm run typecheck && npm run build:app",
+    "build:app": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "start": "npm run start --workspace @assurance/web",
+    "prepare:local-prod": "npm run build && npm run seed",
     "test": "npm run test --workspaces --if-present",
     "worker": "npm run worker --workspace @assurance/worker",
     "seed": "npm run seed --workspace @assurance/web"

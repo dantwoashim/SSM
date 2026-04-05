@@ -7,8 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "next lint",
-    "start": "next start",
-    "seed": "tsx src/scripts/seed.ts"
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
+    "start": "node --env-file-if-exists=.env.local .next/standalone/apps/web/server.js",
+    "seed": "tsx src/scripts/seed.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@assurance/core": "*",
@@ -18,7 +20,6 @@
     "@vercel/otel": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.46.1",
-    "clsx": "^2.1.1",
     "drizzle-orm": "^0.41.0",
     "ioredis": "^5.6.1",
     "jose": "^6.0.8",

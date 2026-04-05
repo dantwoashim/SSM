@@ -1,5 +1,9 @@
 # Launch Checklist
 
+If you want the full non-technical step-by-step setup and daily operating guide, start here:
+
+- [Founder Launch Guide](founder-launch-guide.md)
+
 ## Company and commercial
 
 - Finalize entity, banking, invoicing, and tax setup.

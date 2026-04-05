@@ -11,6 +11,6 @@ Prepare these before live paid pilots:
 
 Supporting drafts in this repo:
 
-- [MSA template](/d:/SSM/docs/legal/msa-template.md)
-- [Deal Rescue SOW template](/d:/SSM/docs/legal/sow-deal-rescue-template.md)
-- [DPA outline](/d:/SSM/docs/legal/dpa-outline.md)
+- [MSA template](msa-template.md)
+- [Deal Rescue SOW template](sow-deal-rescue-template.md)
+- [DPA outline](dpa-outline.md)

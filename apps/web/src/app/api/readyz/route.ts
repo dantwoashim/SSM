@@ -1,31 +1,33 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/data/client";
-import { env } from "@/lib/env";
+import { env, isLocalProdMode, isProductionLike } from "@/lib/env";
 import { emailDeliveryConfigured } from "@/lib/email";
-import IORedis from "ioredis";
+import { pingRedis } from "@/lib/redis";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   try {
     await getDb();
-    let redis = false;
+    const redis = env.redisUrl ? await pingRedis() : false;
+    const storageConfigured = !!(env.s3.endpoint && env.s3.bucket);
+    const jobExecutorConfigured = !!env.jobExecutorToken || !env.redisUrl;
+    const storageReady = !isProductionLike() || isLocalProdMode() || storageConfigured;
+    const ready = (!env.redisUrl || redis) && jobExecutorConfigured && storageReady;
 
-    if (env.redisUrl) {
-      const connection = new IORedis(env.redisUrl, { maxRetriesPerRequest: null });
-      try {
-        redis = (await connection.ping()) === "PONG";
-      } finally {
-        await connection.quit();
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      database: true,
-      redisConfigured: !!env.redisUrl,
-      redis,
-      storageConfigured: !!(env.s3.endpoint && env.s3.bucket),
-      emailConfigured: emailDeliveryConfigured(),
-    });
+    return NextResponse.json(
+      {
+        ok: ready,
+        database: true,
+        redisConfigured: !!env.redisUrl,
+        redis,
+        jobExecutorConfigured,
+        storageConfigured,
+        storageReady,
+        emailConfigured: emailDeliveryConfigured(),
+      },
+      { status: ready ? 200 : 503 },
+    );
   } catch (error) {
     return NextResponse.json(
       {

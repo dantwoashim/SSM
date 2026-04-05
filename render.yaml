@@ -11,6 +11,8 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: JOB_EXECUTOR_TOKEN
+        generateValue: true
       - key: FOUNDER_EMAIL
         sync: false
       - key: FOUNDER_PASSWORD
@@ -49,15 +51,15 @@ services:
     buildCommand: npm install
     startCommand: npm run worker
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: identity-go-live-assurance-db
-          property: connectionString
       - key: REDIS_URL
         fromService:
           type: keyvalue
           name: identity-go-live-assurance-redis
           property: connectionString
+      - key: WEB_APP_URL
+        sync: false
+      - key: JOB_EXECUTOR_TOKEN
+        sync: false
   - type: keyvalue
     name: identity-go-live-assurance-redis
     plan: starter

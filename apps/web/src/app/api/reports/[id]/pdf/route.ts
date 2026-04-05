@@ -3,6 +3,8 @@ import { findReportById, hasEngagementAccess } from "@/lib/data";
 import { renderReportPdf } from "@/lib/pdf";
 import { getCurrentSession } from "@/lib/session";
 
+export const runtime = "nodejs";
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -38,6 +40,7 @@ export async function GET(
 
   return new NextResponse(Buffer.from(bytes), {
     headers: {
+      "Cache-Control": "private, no-store, max-age=0",
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${id}.pdf"`,
     },
