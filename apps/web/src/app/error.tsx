@@ -17,9 +17,7 @@ export default function ErrorPage({
   return (
     <section className="auth-shell">
       <h1>Something broke</h1>
-      <p>
-        {error.message || "A server-side error occurred while processing the page."}
-      </p>
+      <p>Something unexpected happened while processing the page. The issue has been logged.</p>
       {error.digest ? <p className="muted">Reference: {error.digest}</p> : null}
       <div className="actions">
         <button className="button-primary" type="button" onClick={reset}>

@@ -15,9 +15,7 @@ export default function GlobalError({
         <main className="site-shell">
           <section className="auth-shell">
             <h1>Application error</h1>
-            <p>
-              {error.message || "An unexpected error occurred."}
-            </p>
+            <p>An unexpected error occurred. Please retry or return home.</p>
             {error.digest ? <p className="muted">Reference: {error.digest}</p> : null}
             <div className="actions">
               <button className="button-primary" type="button" onClick={reset}>
