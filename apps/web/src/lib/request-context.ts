@@ -1,10 +1,11 @@
 import { headers } from "next/headers";
+import { env } from "./env";
 
 export async function getRequestIp() {
   const requestHeaders = await headers();
   const forwardedFor = requestHeaders.get("cf-connecting-ip")
-    || requestHeaders.get("x-forwarded-for")
-    || requestHeaders.get("x-real-ip");
+    || requestHeaders.get("x-real-ip")
+    || (process.env.NODE_ENV !== "production" ? requestHeaders.get("x-forwarded-for") : null);
 
   if (!forwardedFor) {
     return "unknown";
@@ -20,12 +21,19 @@ export async function assertSameOriginRequest() {
   const protocol = requestHeaders.get("x-forwarded-proto") || "https";
 
   if (!origin || !host) {
-    return;
+    throw new Error("Missing request origin metadata.");
   }
 
   const expectedOrigin = `${protocol}://${host}`;
+  const allowedOrigins = new Set([expectedOrigin]);
 
-  if (origin !== expectedOrigin) {
+  try {
+    allowedOrigins.add(new URL(env.appUrl).origin);
+  } catch {
+    // Ignore malformed APP_URL during local development.
+  }
+
+  if (!allowedOrigins.has(origin)) {
     throw new Error("Cross-site form submission blocked.");
   }
 }
