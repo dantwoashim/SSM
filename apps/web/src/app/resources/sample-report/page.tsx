@@ -1,40 +1,62 @@
 import { sampleReportSnapshot, toMarkdown } from "@assurance/core";
 import { PageHeader } from "@/components/page-header";
-import { SectionPanel } from "@/components/section-panel";
 
 export default function SampleReportPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Sample report"
+        label="Sample report"
         title="A redacted assurance packet designed for real buyer scrutiny."
         description="This sample shows how the product captures scope, scenario outcomes, and buyer-safe remediation language."
       />
-      <div className="grid-two">
-        <SectionPanel title="Executive summary">
-          <p>{sampleReportSnapshot.summary.executiveSummary}</p>
-          <div className="pill-row">
-            <span className="pill">Readiness {sampleReportSnapshot.summary.readinessScore}/100</span>
-            <span className="pill">{sampleReportSnapshot.provider}</span>
-            <span className="pill">{sampleReportSnapshot.findings.length} open findings</span>
+      <section className="content-section">
+        <div className="layout-two">
+          <div>
+            <h3>Executive summary</h3>
+            <p className="mt-sm">
+              {sampleReportSnapshot.summary.executiveSummary}
+            </p>
+            <div className="metrics-row metrics-row-compact mt-lg">
+              <div className="metric">
+                <span className="metric-value">
+                  {sampleReportSnapshot.summary.readinessScore}
+                </span>
+                <span className="metric-label">Readiness</span>
+              </div>
+              <div className="metric">
+                <span className="metric-value">
+                  {sampleReportSnapshot.provider}
+                </span>
+                <span className="metric-label">Provider</span>
+              </div>
+              <div className="metric">
+                <span className="metric-value">
+                  {sampleReportSnapshot.findings.length}
+                </span>
+                <span className="metric-label">Open findings</span>
+              </div>
+            </div>
           </div>
-        </SectionPanel>
-        <SectionPanel title="Open findings">
-          <ul className="list">
-            {sampleReportSnapshot.findings.map((finding) => (
-              <li key={finding.title}>
-                <strong>{finding.title}</strong>: {finding.summary}
-              </li>
-            ))}
-          </ul>
-        </SectionPanel>
-      </div>
-      <article className="panel">
+          <div>
+            <h3>Open findings</h3>
+            <ul className="clean-list mt-sm">
+              {sampleReportSnapshot.findings.map((finding) => (
+                <li key={finding.title}>
+                  <strong>{finding.title}</strong>
+                  <br />
+                  <span className="body-sm">{finding.summary}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section className="content-section">
         <h3>Markdown export preview</h3>
-        <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-body)" }}>
+        <pre className="code-block-preview">
           {toMarkdown(sampleReportSnapshot)}
         </pre>
-      </article>
+      </section>
     </>
   );
 }

@@ -1,46 +1,45 @@
-import { redirect } from "next/navigation";
-import { loginAction } from "@/lib/actions/auth-actions";
-import { PageHeader } from "@/components/page-header";
+import { loginAndRedirectAction } from "@/lib/actions/auth-actions";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ redirectTo?: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
-  async function action(formData: FormData) {
-    "use server";
-    const redirectTo = formData.get("redirectTo")?.toString() || "/app";
-    await loginAction(formData);
-    redirect(redirectTo);
-  }
+  const resolvedParams = searchParams ? await searchParams : undefined;
 
   return (
     <div className="auth-shell">
-      <PageHeader
-        eyebrow="Portal access"
-        title="Invite-only login for founders and customer contacts."
-        description="Use the seeded founder account or a manually created invited account."
-      />
-      <form className="panel form-shell" action={action}>
-        <input type="hidden" name="redirectTo" defaultValue="/app" />
-        <div className="field-grid">
+      <h1>Sign in</h1>
+      <p>Access the assurance portal to manage engagements and reports.</p>
+      <form action={loginAndRedirectAction}>
+        <div className="form-fields">
           <div className="field">
             <label htmlFor="email">Email</label>
-            <input id="email" name="email" type="email" required />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@company.com"
+              required
+            />
           </div>
           <div className="field">
             <label htmlFor="password">Password</label>
-            <input id="password" name="password" type="password" required />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              placeholder="********"
+              required
+            />
           </div>
-        </div>
-        <div className="actions">
-          <button className="button-primary" type="submit">
+          {resolvedParams?.error ? (
+            <p className="error-message">{resolvedParams.error}</p>
+          ) : null}
+          <button type="submit" className="button-primary">
             Sign in
           </button>
         </div>
-        <p className="muted">
-          Set founder credentials in <code>apps/web/.env.local</code> and run <code>npm run seed</code>.
-        </p>
       </form>
     </div>
   );

@@ -1,17 +1,8 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Source_Sans_3 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
-const displayFont = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-});
-
-const bodyFont = Source_Sans_3({
-  subsets: ["latin"],
-  variable: "--font-body",
-});
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Identity Go-Live Assurance",
@@ -25,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${displayFont.variable} ${bodyFont.variable}`}>
+    <html lang="en">
       <body>
         <header className="site-shell">
           <div className="topbar">

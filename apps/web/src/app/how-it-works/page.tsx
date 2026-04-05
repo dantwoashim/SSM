@@ -1,40 +1,58 @@
 import { PageHeader } from "@/components/page-header";
-import { SectionPanel } from "@/components/section-panel";
+
+const steps = [
+  {
+    title: "Intake and qualification",
+    items: [
+      "Capture deal stage, target customer, deadline, target IdP, and claimed identity support.",
+      "Verify ACV potential, urgency, and staging access before converting to an engagement.",
+    ],
+  },
+  {
+    title: "Default test plan",
+    items: [
+      "Generate a provider-aware scenario plan from the customer\u0027s required flows.",
+      "Allow manual additions for buyer-specific edge cases.",
+    ],
+  },
+  {
+    title: "Execution and triage",
+    items: [
+      "Track scenario outcomes, evidence, and reviewer notes.",
+      "Promote failed scenarios into structured findings with remediation language.",
+    ],
+  },
+  {
+    title: "Assurance report and retest",
+    items: [
+      "Produce a reusable report snapshot and downloadable PDF.",
+      "Re-run changed scenarios and preserve the customer-safe artifact trail.",
+    ],
+  },
+];
 
 export default function HowItWorksPage() {
   return (
     <>
       <PageHeader
-        eyebrow="How it works"
+        label="How it works"
         title="Lead -> Qualification -> Engagement -> Report."
         description="The product is optimized for founder-led delivery first. Manual work is tracked, structured, and easy to automate later."
       />
-      <div className="grid-two">
-        <SectionPanel title="1. Intake and qualification">
-          <ul className="list">
-            <li>Capture deal stage, target customer, deadline, target IdP, and claimed identity support.</li>
-            <li>Verify ACV potential, urgency, and staging access before converting to an engagement.</li>
-          </ul>
-        </SectionPanel>
-        <SectionPanel title="2. Default test plan">
-          <ul className="list">
-            <li>Generate a provider-aware scenario plan from the customer&apos;s required flows.</li>
-            <li>Allow manual additions for buyer-specific edge cases.</li>
-          </ul>
-        </SectionPanel>
-        <SectionPanel title="3. Execution and triage">
-          <ul className="list">
-            <li>Track scenario outcomes, evidence, and reviewer notes.</li>
-            <li>Promote failed scenarios into structured findings with remediation language.</li>
-          </ul>
-        </SectionPanel>
-        <SectionPanel title="4. Assurance report and retest">
-          <ul className="list">
-            <li>Produce a reusable report snapshot and downloadable PDF.</li>
-            <li>Re-run changed scenarios and preserve the customer-safe artifact trail.</li>
-          </ul>
-        </SectionPanel>
-      </div>
+      <ol className="numbered-steps">
+        {steps.map((step) => (
+          <li key={step.title} className="step-item">
+            <div>
+              <h3>{step.title}</h3>
+              <ul className="bullet-list mt-sm">
+                {step.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </li>
+        ))}
+      </ol>
     </>
   );
 }

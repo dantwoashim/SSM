@@ -1,5 +1,4 @@
 import { PageHeader } from "@/components/page-header";
-import { SectionPanel } from "@/components/section-panel";
 
 const controls = [
   "Invite-only portal access with signed sessions.",
@@ -14,26 +13,35 @@ export default function SecurityPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Security"
+        label="Security"
         title="Security-ready operations before formal compliance packaging."
         description="The launch baseline emphasizes least privilege, explicit retention, and customer-safe handling of evidence artifacts."
       />
-      <div className="grid-two">
-        <SectionPanel title="Operational baseline">
-          <ul className="list">
-            {controls.map((control) => (
-              <li key={control}>{control}</li>
-            ))}
-          </ul>
-        </SectionPanel>
-        <SectionPanel title="Launch stance">
-          <p>
-            This product does not claim formal certification or attestation. It produces
-            assurance reports and maintains security-ready operating controls while SOC 2
-            preparation is deferred until initial revenue.
-          </p>
-        </SectionPanel>
-      </div>
+      <section className="content-section">
+        <div className="layout-two">
+          <div>
+            <h3>Operational baseline</h3>
+            <ul className="clean-list mt-md">
+              {controls.map((control) => (
+                <li key={control}>{control}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3>Compliance position</h3>
+            <p className="mt-md">
+              This product does not claim formal certification or attestation.
+              It produces assurance reports and maintains security-ready
+              operating controls while SOC 2 preparation is deferred until
+              initial revenue.
+            </p>
+            <p className="mt-md">
+              We believe in earning trust through transparent operations, not
+              through premature compliance theater.
+            </p>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

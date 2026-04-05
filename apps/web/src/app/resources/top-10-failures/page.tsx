@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { SectionPanel } from "@/components/section-panel";
 
 const failures = [
   "IdP-initiated login resolves to the wrong tenant.",
@@ -18,17 +18,26 @@ export default function Top10FailuresPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Lead magnet"
+        label="Enterprise readiness"
         title="Top 10 enterprise SSO and SCIM failures that delay go-live."
         description="Use this as a founder-led outbound asset, a sales-enablement handout, or a pre-call diagnostic checklist."
       />
-      <SectionPanel title="Failure patterns that show up in live deal cycles">
-        <ol className="list">
+      <section className="content-section">
+        <ol className="numbered-steps">
           {failures.map((failure) => (
-            <li key={failure}>{failure}</li>
+            <li key={failure} className="step-item">
+              <p>{failure}</p>
+            </li>
           ))}
         </ol>
-      </SectionPanel>
+        <hr />
+        <p className="mt-lg">
+          If any of these patterns are active in a live deal,{" "}
+          <Link href="/intake" className="text-link">
+            request a Deal Rescue engagement {"->"}
+          </Link>
+        </p>
+      </section>
     </>
   );
 }
