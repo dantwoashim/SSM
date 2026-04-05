@@ -1,16 +1,16 @@
 import { ReportSnapshot, Severity } from "./types";
 
 const severityOrder: Record<Severity, number> = {
-  "blocks-go-live": 0,
-  "high-risk": 1,
+  "blocks-go-live": 4,
+  "high-risk": 3,
   "needs-clarification": 2,
-  "non-blocking": 3,
+  "non-blocking": 1,
 };
 
 export function computeReadinessScore(snapshot: Pick<ReportSnapshot, "scenarios" | "findings">): number {
   const failed = snapshot.scenarios.filter((scenario) => scenario.outcome === "failed").length;
   const weightedFindingPenalty = snapshot.findings.reduce((total, finding) => {
-    return total + (severityOrder[finding.severity] + 1) * 5;
+    return total + severityOrder[finding.severity] * 5;
   }, 0);
 
   return Math.max(0, 100 - failed * 8 - weightedFindingPenalty);
@@ -36,14 +36,14 @@ export function toMarkdown(snapshot: ReportSnapshot): string {
     .sort((left, right) => severityOrder[left.severity] - severityOrder[right.severity])
     .map(
       (finding) =>
-        `- **${finding.title}** (${finding.severity}): ${finding.summary}\n  - Remediation: ${finding.remediation}\n  - Buyer-safe note: ${finding.buyerSafeNote}`,
+        `- **${finding.title}** (${finding.severity}${finding.evidenceCount > 0 ? `, evidence: ${finding.evidenceCount}` : ""}): ${finding.summary}\n  - Remediation: ${finding.remediation}\n  - Buyer-safe note: ${finding.buyerSafeNote}`,
     )
     .join("\n");
 
   const scenarioLines = snapshot.scenarios
     .map(
       (scenario) =>
-        `- ${scenario.title} [${scenario.protocol}] - ${scenario.outcome}${scenario.reviewerNotes ? `: ${scenario.reviewerNotes}` : ""}`,
+        `- ${scenario.title} [${scenario.protocol}] - ${scenario.outcome}${scenario.evidenceCount > 0 ? ` (${scenario.evidenceCount} evidence)` : ""}${scenario.reviewerNotes ? `: ${scenario.reviewerNotes}` : ""}`,
     )
     .join("\n");
 

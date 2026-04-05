@@ -21,6 +21,7 @@ const snapshot: ReportSnapshot = {
       protocol: "saml",
       outcome: "passed",
       reviewerNotes: "Correct tenant selected.",
+      evidenceCount: 1,
     },
     {
       id: "group-role-mapping",
@@ -28,6 +29,7 @@ const snapshot: ReportSnapshot = {
       protocol: "scim",
       outcome: "failed",
       reviewerNotes: "Admin group mapped to viewer.",
+      evidenceCount: 2,
     },
   ],
   findings: [
@@ -37,13 +39,14 @@ const snapshot: ReportSnapshot = {
       summary: "Admin group mapped to viewer.",
       remediation: "Fix role mapping normalization.",
       buyerSafeNote: "Role assignment is not yet reliable for the scoped groups.",
+      evidenceCount: 2,
     },
   ],
 };
 
 describe("report helpers", () => {
   it("computes readiness score with scenario and finding penalties", () => {
-    expect(computeReadinessScore(snapshot)).toBe(87);
+    expect(computeReadinessScore(snapshot)).toBe(72);
   });
 
   it("formats executive summaries with rollout context", () => {
@@ -67,5 +70,6 @@ describe("report helpers", () => {
     expect(markdown).toContain("# Assurance Report");
     expect(markdown).toContain("## Scenario results");
     expect(markdown).toContain("Group role mapping drift");
+    expect(markdown).toContain("evidence: 2");
   });
 });
