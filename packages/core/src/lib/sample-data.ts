@@ -1,7 +1,7 @@
 import { ReportSnapshot } from "./types";
 import { computeReadinessScore, formatExecutiveSummary } from "./report";
 
-export const sampleReportSnapshot: ReportSnapshot = {
+const baseSampleReportSnapshot: ReportSnapshot = {
   engagementTitle: "Acme <> Northwind Deal Rescue",
   companyName: "Acme SaaS",
   targetCustomer: "Northwind Financial",
@@ -54,5 +54,11 @@ export const sampleReportSnapshot: ReportSnapshot = {
   ],
 };
 
-sampleReportSnapshot.summary.executiveSummary = formatExecutiveSummary(sampleReportSnapshot);
-sampleReportSnapshot.summary.readinessScore = computeReadinessScore(sampleReportSnapshot);
+export const sampleReportSnapshot: ReportSnapshot = {
+  ...baseSampleReportSnapshot,
+  summary: {
+    ...baseSampleReportSnapshot.summary,
+    executiveSummary: formatExecutiveSummary(baseSampleReportSnapshot),
+    readinessScore: computeReadinessScore(baseSampleReportSnapshot),
+  },
+};

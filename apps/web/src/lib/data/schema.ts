@@ -20,6 +20,11 @@ export const users = pgTable("users", {
   createdAt: text("created_at").notNull(),
 });
 
+export const schemaMigrations = pgTable("schema_migrations", {
+  id: text("id").primaryKey(),
+  appliedAt: text("applied_at").notNull(),
+});
+
 export const invites = pgTable("invites", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
@@ -158,6 +163,15 @@ export const attachments = pgTable("attachments", {
   contentType: text("content_type").notNull(),
   size: integer("size").notNull(),
   createdAt: text("created_at").notNull(),
+});
+
+export const requestLimits = pgTable("request_limits", {
+  id: text("id").primaryKey(),
+  bucketKey: text("bucket_key").notNull().unique(),
+  route: text("route").notNull(),
+  count: integer("count").notNull(),
+  windowStartedAt: text("window_started_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 });
 
 export const auditLogs = pgTable("audit_logs", {

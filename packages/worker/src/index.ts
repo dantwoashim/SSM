@@ -6,12 +6,39 @@ import {
 } from "@assurance/core";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
-import { generateReport, generateTestPlan } from "../../../apps/web/src/lib/data";
-import {
-  markJobCompleted,
-  markJobFailed,
-  markJobRunning,
-} from "../../../apps/web/src/lib/data";
+
+const webAppUrl = process.env.WEB_APP_URL || process.env.APP_URL || "";
+const jobExecutorToken = process.env.JOB_EXECUTOR_TOKEN || "";
+
+async function executeJob(job: AssuranceJob) {
+  if (!webAppUrl) {
+    throw new Error("WEB_APP_URL or APP_URL must be configured for worker execution.");
+  }
+
+  if (!jobExecutorToken) {
+    throw new Error("JOB_EXECUTOR_TOKEN must be configured for worker execution.");
+  }
+
+  const response = await fetch(`${webAppUrl.replace(/\/$/, "")}/api/internal/jobs/execute`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-assurance-queue": assuranceQueueName,
+      "x-job-executor-token": jobExecutorToken,
+    },
+    body: JSON.stringify(job),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | { ok?: boolean; error?: string; result?: Record<string, unknown> }
+    | null;
+
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.error || `Worker execution failed with status ${response.status}.`);
+  }
+
+  return payload.result ?? {};
+}
 
 async function main() {
   const redisUrl = process.env.REDIS_URL;
@@ -33,35 +60,7 @@ async function main() {
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
   const worker = new Worker<AssuranceJob["data"]>(
     assuranceQueueName,
-    async (job) => {
-      try {
-        await markJobRunning(job.data.jobRunId);
-
-        if (job.name === "test-plan.generate") {
-          await generateTestPlan(job.data.engagementId, job.data.actorName);
-          const result = {
-            engagementId: job.data.engagementId,
-            status: "completed",
-          };
-          await markJobCompleted(job.data.jobRunId, result);
-          return result;
-        }
-
-        await generateReport(job.data.engagementId, job.data.actorName);
-        const result = {
-          engagementId: job.data.engagementId,
-          generatedAt: new Date().toISOString(),
-        };
-        await markJobCompleted(job.data.jobRunId, result);
-        return result;
-      } catch (error) {
-        await markJobFailed(
-          job.data.jobRunId,
-          error instanceof Error ? error.message : "Worker job failed.",
-        );
-        throw error;
-      }
-    },
+    async (job) => executeJob(job as AssuranceJob),
     { connection: connection as any },
   );
 

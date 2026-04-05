@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import {
   addMessage,
@@ -11,18 +12,31 @@ import {
   getEngagementDetail,
   hasEngagementAccess,
   listCustomerRecipientsForEngagement,
-  parseFeatureString,
   publishReport,
   registerAttachment,
   updateScenarioRunResult,
 } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
+import { assertSameOriginRequest } from "@/lib/request-context";
 import { storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
 import { sendInviteEmail, sendReportPublishedEmail } from "@/lib/email";
+import {
+  parseCreateEngagementForm,
+  parseInviteForm,
+  parseJobActionForm,
+  parseMessageForm,
+  parsePublishReportForm,
+  parseScenarioReviewForm,
+  parseVisibility,
+  sanitizeAttachmentFileName,
+  validationMessage,
+  validateAttachmentUpload,
+} from "@/lib/validation";
 
 async function requireActor() {
+  await assertSameOriginRequest();
   const session = await getCurrentSession();
 
   if (!session) {
@@ -59,21 +73,22 @@ async function requireEngagementAccess(engagementId: string) {
 
 export async function convertLeadAction(formData: FormData) {
   const session = await requireFounder();
-  const leadId = formData.get("leadId")?.toString() || "";
+  const leadId = parseJobActionForm(formData, "leadId");
   await convertLeadToEngagement(leadId, session.name);
   revalidatePath("/app");
 }
 
 export async function createEngagementAction(formData: FormData) {
   const session = await requireFounder();
+  const parsed = parseCreateEngagementForm(formData);
   const engagement = await createEngagement({
-    title: formData.get("title")?.toString() || "",
-    companyName: formData.get("companyName")?.toString() || "",
-    productUrl: formData.get("productUrl")?.toString() || "",
-    targetCustomer: formData.get("targetCustomer")?.toString() || "",
-    targetIdp: (formData.get("targetIdp")?.toString() || "entra") as IdpProvider,
-    deadline: formData.get("deadline")?.toString() || "",
-    claimedFeatures: parseFeatureString(formData.get("claimedFeatures")?.toString() || ""),
+    title: parsed.title,
+    companyName: parsed.companyName,
+    productUrl: parsed.productUrl,
+    targetCustomer: parsed.targetCustomer,
+    targetIdp: parsed.targetIdp as IdpProvider,
+    deadline: parsed.deadline,
+    claimedFeatures: parsed.claimedFeatures,
     actorName: session.name,
   });
   revalidatePath("/app");
@@ -81,9 +96,21 @@ export async function createEngagementAction(formData: FormData) {
   return engagement;
 }
 
+export async function createEngagementAndRedirectAction(formData: FormData) {
+  try {
+    const engagement = await createEngagementAction(formData);
+    redirect(`/app/engagements/${engagement.id}`);
+  } catch (error) {
+    const params = new URLSearchParams({
+      error: validationMessage(error),
+    });
+    redirect(`/app/engagements/new?${params.toString()}`);
+  }
+}
+
 export async function generateTestPlanAction(formData: FormData) {
   const session = await requireFounder();
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const engagementId = parseJobActionForm(formData);
   await dispatchJob({
     name: "test-plan.generate",
     data: {
@@ -95,58 +122,52 @@ export async function generateTestPlanAction(formData: FormData) {
 }
 
 export async function updateScenarioResultAction(formData: FormData) {
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const parsed = parseScenarioReviewForm(formData);
   const session = await requireFounder();
   await updateScenarioRunResult({
-    scenarioRunId: formData.get("scenarioRunId")?.toString() || "",
-    outcome: (formData.get("outcome")?.toString() || "pending") as
-      | "pending"
-      | "passed"
-      | "failed"
-      | "skipped",
-    reviewerNotes: formData.get("reviewerNotes")?.toString() || "",
+    scenarioRunId: parsed.scenarioRunId,
+    outcome: parsed.outcome,
+    reviewerNotes: parsed.reviewerNotes,
     actorName: session.name,
   });
-  revalidatePath(`/app/engagements/${engagementId}`);
+  revalidatePath(`/app/engagements/${parsed.engagementId}`);
 }
 
 export async function addMessageAction(formData: FormData) {
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const parsed = parseMessageForm(formData);
+  const engagementId = parsed.engagementId;
   const session = await requireEngagementAccess(engagementId);
-  const requestedVisibility = (formData.get("visibility")?.toString() || "shared") as
-    | "shared"
-    | "internal";
-  const visibility = session.role === "founder" ? requestedVisibility : "shared";
+  const visibility = session.role === "founder" ? parsed.visibility : "shared";
   await addMessage({
     engagementId,
     authorName: session.name,
-    body: formData.get("body")?.toString() || "",
+    body: parsed.body,
     visibility,
   });
   revalidatePath(`/app/engagements/${engagementId}`);
 }
 
 export async function uploadAttachmentAction(formData: FormData) {
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const engagementId = parseJobActionForm(formData);
   const session = await requireEngagementAccess(engagementId);
   const file = formData.get("file");
-  const requestedVisibility = (formData.get("visibility")?.toString() || "shared") as
-    | "shared"
-    | "internal";
+  const requestedVisibility = parseVisibility(formData);
   const visibility = session.role === "founder" ? requestedVisibility : "shared";
 
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("File is required.");
   }
+  validateAttachmentUpload(file);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const storageKey = `${engagementId}/${crypto.randomUUID()}-${file.name}`;
-  await storeArtifact(storageKey, file.name, bytes, file.type || "application/octet-stream");
+  const safeFileName = sanitizeAttachmentFileName(file.name);
+  const storageKey = `${engagementId}/${crypto.randomUUID()}-${safeFileName}`;
+  await storeArtifact(storageKey, safeFileName, bytes, file.type || "application/octet-stream");
   await registerAttachment({
     engagementId,
     uploadedBy: session.name,
     visibility,
-    fileName: file.name,
+    fileName: safeFileName,
     storageKey,
     contentType: file.type || "application/octet-stream",
     size: file.size,
@@ -156,7 +177,7 @@ export async function uploadAttachmentAction(formData: FormData) {
 
 export async function generateReportAction(formData: FormData) {
   const session = await requireFounder();
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const engagementId = parseJobActionForm(formData);
   await dispatchJob({
     name: "report.generate",
     data: {
@@ -169,8 +190,8 @@ export async function generateReportAction(formData: FormData) {
 
 export async function publishReportAction(formData: FormData) {
   const session = await requireFounder();
-  const reportId = formData.get("reportId")?.toString() || "";
-  const engagementId = formData.get("engagementId")?.toString() || "";
+  const parsed = parsePublishReportForm(formData);
+  const { reportId, engagementId } = parsed;
   await publishReport(reportId, session.name);
   const detail = await getEngagementDetail(engagementId);
 
@@ -204,10 +225,11 @@ export async function createInviteAction(
 ) {
   try {
     const session = await requireFounder();
-    const engagementId = formData.get("engagementId")?.toString() || "";
+    const parsed = parseInviteForm(formData);
+    const engagementId = parsed.engagementId;
     const created = await createInvite({
-      email: formData.get("email")?.toString() || "",
-      name: formData.get("name")?.toString() || "",
+      email: parsed.email,
+      name: parsed.name,
       role: "customer",
       engagementId,
       createdBy: session.name,
@@ -240,7 +262,7 @@ export async function createInviteAction(
   } catch (error) {
     return {
       inviteUrl: "",
-      error: error instanceof Error ? error.message : "Failed to create invite.",
+      error: validationMessage(error),
       deliveryMessage: "",
     };
   }

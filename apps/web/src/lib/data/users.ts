@@ -4,14 +4,39 @@ import { getDb } from "./client";
 import { makeId, now } from "./helpers";
 import { users } from "./schema";
 import { audit } from "./audit";
-import { assertFounderBootstrapConfigured, env } from "../env";
+import { assertFounderBootstrapConfigured, env, isLocalProdMode } from "../env";
 
 export async function ensureFounderUser() {
   assertFounderBootstrapConfigured();
   const db = await getDb();
-  const [existing] = await db.select().from(users).limit(1);
+  const [existing] = await db.select().from(users).where(eq(users.role, "founder")).limit(1);
 
   if (existing) {
+    if (
+      isLocalProdMode() &&
+      (existing.email !== env.founderEmail || existing.name !== env.founderName)
+    ) {
+      const passwordHash = await bcrypt.hash(env.founderPassword, 10);
+      await db
+        .update(users)
+        .set({
+          email: env.founderEmail,
+          passwordHash,
+          name: env.founderName,
+        })
+        .where(eq(users.id, existing.id));
+      await audit(env.founderName, "synced_founder_user", "user", existing.id, {
+        email: env.founderEmail,
+      });
+
+      return {
+        ...existing,
+        email: env.founderEmail,
+        passwordHash,
+        name: env.founderName,
+      };
+    }
+
     return existing;
   }
 

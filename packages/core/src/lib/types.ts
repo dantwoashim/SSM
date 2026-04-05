@@ -1,38 +1,48 @@
-export type IdpProvider = "okta" | "entra" | "google-workspace";
+export const idpProviders = ["okta", "entra", "google-workspace"] as const;
+export type IdpProvider = (typeof idpProviders)[number];
 
-export type ClaimedFeature =
-  | "sp-initiated-sso"
-  | "idp-initiated-sso"
-  | "jit-provisioning"
-  | "scim-create"
-  | "scim-update"
-  | "scim-deactivate"
-  | "scim-reactivate"
-  | "group-push"
-  | "group-role-mapping"
-  | "duplicate-account-linking"
-  | "tenant-isolation"
-  | "certificate-rollover"
-  | "auditability";
+export const claimedFeatures = [
+  "sp-initiated-sso",
+  "idp-initiated-sso",
+  "jit-provisioning",
+  "scim-create",
+  "scim-update",
+  "scim-deactivate",
+  "scim-reactivate",
+  "group-push",
+  "group-role-mapping",
+  "duplicate-account-linking",
+  "tenant-isolation",
+  "certificate-rollover",
+  "auditability",
+] as const;
+export type ClaimedFeature = (typeof claimedFeatures)[number];
 
-export type ScenarioProtocol = "saml" | "oidc" | "scim" | "ops";
-export type ScenarioExecutionMode = "manual" | "guided" | "automated";
+export const scenarioProtocols = ["saml", "oidc", "scim", "ops"] as const;
+export type ScenarioProtocol = (typeof scenarioProtocols)[number];
+export const scenarioExecutionModes = ["manual", "guided", "automated"] as const;
+export type ScenarioExecutionMode = (typeof scenarioExecutionModes)[number];
 
-export type Severity =
-  | "blocks-go-live"
-  | "high-risk"
-  | "needs-clarification"
-  | "non-blocking";
+export const severities = [
+  "blocks-go-live",
+  "high-risk",
+  "needs-clarification",
+  "non-blocking",
+] as const;
+export type Severity = (typeof severities)[number];
 
-export type ScenarioOutcome = "pending" | "passed" | "failed" | "skipped";
-export type EngagementStatus =
-  | "lead-intake"
-  | "qualified"
-  | "in-progress"
-  | "report-drafting"
-  | "report-ready"
-  | "retest"
-  | "closed";
+export const scenarioOutcomes = ["pending", "passed", "failed", "skipped"] as const;
+export type ScenarioOutcome = (typeof scenarioOutcomes)[number];
+export const engagementStatuses = [
+  "lead-intake",
+  "qualified",
+  "in-progress",
+  "report-drafting",
+  "report-ready",
+  "retest",
+  "closed",
+] as const;
+export type EngagementStatus = (typeof engagementStatuses)[number];
 
 export interface ScenarioDefinition {
   id: string;

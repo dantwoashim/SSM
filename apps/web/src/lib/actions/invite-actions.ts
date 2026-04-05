@@ -1,23 +1,26 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { issueSessionCookie } from "@/lib/session";
 import { acceptInvite } from "@/lib/data";
+import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
+import { enforceRateLimit } from "@/lib/data";
+import { parseAcceptInviteForm } from "@/lib/validation";
 
 export async function acceptInviteAction(formData: FormData) {
-  const token = formData.get("token")?.toString() || "";
-  const password = formData.get("password")?.toString() || "";
-
-  if (password.length < 10) {
-    throw new Error("Password must be at least 10 characters.");
-  }
-
-  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-    throw new Error("Password must include upper, lower, and numeric characters.");
-  }
+  await assertSameOriginRequest();
+  const ip = await getRequestIp();
+  await enforceRateLimit({
+    route: "accept-invite",
+    bucketKey: `invite:${ip}`,
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  const parsed = parseAcceptInviteForm(formData);
 
   const accepted = await acceptInvite({
-    token,
-    password,
+    token: parsed.token,
+    password: parsed.password,
   });
 
   await issueSessionCookie({
@@ -28,4 +31,9 @@ export async function acceptInviteAction(formData: FormData) {
   });
 
   return accepted.engagementId ? `/app/engagements/${accepted.engagementId}` : "/app";
+}
+
+export async function acceptInviteAndRedirectAction(formData: FormData) {
+  const target = await acceptInviteAction(formData);
+  redirect(target);
 }

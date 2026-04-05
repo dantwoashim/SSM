@@ -2,11 +2,19 @@ import { mkdir } from "node:fs/promises";
 import * as schema from "./schema";
 import { assertDatabaseConfigured, env } from "../env";
 
+type Migration = {
+  id: string;
+  sql: string;
+};
+
 let database: any;
 let rawClient: any;
 let initialized: Promise<void> | null = null;
 
-const migrationSql = `
+const migrations: Migration[] = [
+  {
+    id: "001_initial_schema",
+    sql: `
 CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY,
   email text NOT NULL UNIQUE,
@@ -156,8 +164,6 @@ CREATE TABLE IF NOT EXISTS attachments (
   created_at text NOT NULL
 );
 
-ALTER TABLE attachments ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'shared';
-
 CREATE TABLE IF NOT EXISTS audit_logs (
   id text PRIMARY KEY,
   actor_name text NOT NULL,
@@ -167,7 +173,107 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   metadata jsonb NOT NULL,
   created_at text NOT NULL
 );
-`;
+`,
+  },
+  {
+    id: "002_attachment_visibility_backfill",
+    sql: `
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'shared';
+UPDATE attachments
+SET visibility = 'shared'
+WHERE visibility IS NULL OR visibility = '';
+`,
+  },
+  {
+    id: "003_request_limits",
+    sql: `
+CREATE TABLE IF NOT EXISTS request_limits (
+  id text PRIMARY KEY,
+  bucket_key text NOT NULL UNIQUE,
+  route text NOT NULL,
+  count integer NOT NULL,
+  window_started_at text NOT NULL,
+  updated_at text NOT NULL
+);
+`,
+  },
+  {
+    id: "004_indexes",
+    sql: `
+CREATE UNIQUE INDEX IF NOT EXISTS engagement_memberships_engagement_user_idx
+ON engagement_memberships (engagement_id, user_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS invites_token_hash_idx
+ON invites (token_hash);
+
+CREATE INDEX IF NOT EXISTS invites_engagement_idx
+ON invites (engagement_id);
+
+CREATE INDEX IF NOT EXISTS invites_email_idx
+ON invites (email);
+
+CREATE INDEX IF NOT EXISTS leads_status_created_at_idx
+ON leads (status, created_at);
+
+CREATE INDEX IF NOT EXISTS engagements_status_updated_at_idx
+ON engagements (status, updated_at);
+
+CREATE INDEX IF NOT EXISTS engagements_target_customer_idx
+ON engagements (target_customer);
+
+CREATE INDEX IF NOT EXISTS engagements_target_idp_idx
+ON engagements (target_idp);
+
+CREATE INDEX IF NOT EXISTS test_runs_engagement_created_at_idx
+ON test_runs (engagement_id, created_at);
+
+CREATE INDEX IF NOT EXISTS job_runs_engagement_created_at_idx
+ON job_runs (engagement_id, created_at);
+
+CREATE INDEX IF NOT EXISTS job_runs_status_updated_at_idx
+ON job_runs (status, updated_at);
+
+CREATE UNIQUE INDEX IF NOT EXISTS scenario_runs_test_run_scenario_idx
+ON scenario_runs (test_run_id, scenario_id);
+
+CREATE INDEX IF NOT EXISTS findings_engagement_status_idx
+ON findings (engagement_id, status);
+
+CREATE INDEX IF NOT EXISTS findings_test_run_idx
+ON findings (test_run_id);
+
+CREATE INDEX IF NOT EXISTS findings_scenario_run_idx
+ON findings (scenario_run_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS reports_engagement_version_idx
+ON reports (engagement_id, version);
+
+CREATE INDEX IF NOT EXISTS messages_engagement_created_at_idx
+ON messages (engagement_id, created_at);
+
+CREATE INDEX IF NOT EXISTS attachments_engagement_visibility_idx
+ON attachments (engagement_id, visibility);
+
+CREATE INDEX IF NOT EXISTS attachments_storage_key_idx
+ON attachments (storage_key);
+
+CREATE INDEX IF NOT EXISTS request_limits_route_updated_at_idx
+ON request_limits (route, updated_at);
+
+CREATE INDEX IF NOT EXISTS audit_logs_entity_created_at_idx
+ON audit_logs (entity_type, entity_id, created_at);
+`,
+  },
+];
+
+async function executeSql(statement: string) {
+  if (typeof rawClient.exec === "function") {
+    await rawClient.exec(statement);
+    return;
+  }
+
+  await rawClient.unsafe(statement);
+}
 
 async function applyMigrations() {
   if (!database) {
@@ -192,10 +298,26 @@ async function applyMigrations() {
 
   if (!initialized) {
     initialized = (async () => {
-      if (typeof rawClient.exec === "function") {
-        await rawClient.exec(migrationSql);
-      } else {
-        await rawClient.unsafe(migrationSql);
+      await executeSql(`
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id text PRIMARY KEY,
+  applied_at text NOT NULL
+);
+`);
+
+      const appliedRows = await database.select().from(schema.schemaMigrations);
+      const applied = new Set(appliedRows.map((row: { id: string }) => row.id));
+
+      for (const migration of migrations) {
+        if (applied.has(migration.id)) {
+          continue;
+        }
+
+        await executeSql(migration.sql);
+        await database.insert(schema.schemaMigrations).values({
+          id: migration.id,
+          appliedAt: new Date().toISOString(),
+        });
       }
     })();
   }

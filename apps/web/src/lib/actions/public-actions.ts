@@ -1,46 +1,63 @@
 "use server";
 
-import type { ClaimedFeature, IdpProvider } from "@assurance/core";
-import { createLead } from "@/lib/data";
-import { audit } from "@/lib/data";
+import { redirect } from "next/navigation";
+import { audit, createLead, enforceRateLimit } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
 import { sendLeadNotificationEmail } from "@/lib/email";
+import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
+import { parseLeadForm, validationMessage } from "@/lib/validation";
 
 export async function submitLeadAction(formData: FormData) {
-  const requiredFlows = formData
-    .get("requiredFlows")
-    ?.toString()
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean) as ClaimedFeature[];
+  await assertSameOriginRequest();
+  const honeypot = formData.get("website")?.toString().trim();
+
+  if (honeypot) {
+    return;
+  }
+
+  const ip = await getRequestIp();
+  await enforceRateLimit({
+    route: "lead-intake",
+    bucketKey: `lead:${ip}`,
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+  const parsed = parseLeadForm(formData);
 
   const lead = await createLead({
-    companyName: formData.get("companyName")?.toString() || "",
-    contactName: formData.get("contactName")?.toString() || "",
-    contactEmail: formData.get("contactEmail")?.toString() || "",
-    productUrl: formData.get("productUrl")?.toString() || "",
-    dealStage: formData.get("dealStage")?.toString() || "",
-    targetCustomer: formData.get("targetCustomer")?.toString() || "",
-    targetIdp: (formData.get("targetIdp")?.toString() || "entra") as IdpProvider,
-    requiredFlows,
-    authNotes: formData.get("authNotes")?.toString() || "",
-    stagingAccessMethod: formData.get("stagingAccessMethod")?.toString() || "",
-    timeline: formData.get("timeline")?.toString() || "",
-    deadline: formData.get("deadline")?.toString() || "",
+    companyName: parsed.companyName,
+    contactName: parsed.contactName,
+    contactEmail: parsed.contactEmail,
+    productUrl: parsed.productUrl,
+    dealStage: parsed.dealStage,
+    targetCustomer: parsed.targetCustomer,
+    targetIdp: parsed.targetIdp,
+    requiredFlows: parsed.requiredFlows,
+    authNotes: parsed.authNotes,
+    stagingAccessMethod: parsed.stagingAccessMethod,
+    timeline: parsed.timeline,
+    deadline: parsed.deadline,
   });
 
   assertAppUrlConfigured();
   const delivery = await sendLeadNotificationEmail({
-    companyName: formData.get("companyName")?.toString() || "",
-    targetCustomer: formData.get("targetCustomer")?.toString() || "",
-    targetIdp: formData.get("targetIdp")?.toString() || "entra",
-    dealStage: formData.get("dealStage")?.toString() || "",
+    companyName: parsed.companyName,
+    targetCustomer: parsed.targetCustomer,
+    targetIdp: parsed.targetIdp,
+    dealStage: parsed.dealStage,
     leadUrl: `${env.appUrl}/app`,
   });
   await audit("system", "lead_notification_processed", "lead", lead.id, {
     delivered: delivery.delivered,
     provider: delivery.provider,
   });
+}
 
-  return { leadId: lead.id };
+export async function submitLeadAndRedirectAction(formData: FormData) {
+  try {
+    await submitLeadAction(formData);
+    redirect("/intake?success=1");
+  } catch (error) {
+    redirect(`/intake?error=${encodeURIComponent(validationMessage(error))}`);
+  }
 }

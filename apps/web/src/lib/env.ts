@@ -3,9 +3,11 @@ const appUrl = process.env.APP_URL || "http://localhost:3000";
 export const env = {
   appUrl,
   sessionSecret: process.env.SESSION_SECRET || "change-me-before-production",
+  jobExecutorToken: process.env.JOB_EXECUTOR_TOKEN || "",
   founderEmail: process.env.FOUNDER_EMAIL || "founder@example.com",
   founderPassword: process.env.FOUNDER_PASSWORD || "ChangeMe123!",
   founderName: process.env.FOUNDER_NAME || "Founder",
+  allowLocalProd: process.env.ALLOW_LOCAL_PROD || "",
   notificationEmail: process.env.NOTIFICATION_EMAIL || "",
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL,
@@ -23,6 +25,10 @@ export const env = {
 
 export function isProductionLike() {
   return process.env.NODE_ENV === "production";
+}
+
+export function isLocalProdMode() {
+  return env.allowLocalProd === "1";
 }
 
 function shouldValidateProductionRuntime() {
@@ -44,6 +50,10 @@ export function assertDatabaseConfigured() {
     return;
   }
 
+  if (isLocalProdMode()) {
+    return;
+  }
+
   if (!env.databaseUrl) {
     throw new Error("DATABASE_URL must be set in production.");
   }
@@ -56,6 +66,16 @@ export function assertSessionConfigured() {
 
   if (env.sessionSecret === "change-me-before-production") {
     throw new Error("SESSION_SECRET must be changed before production.");
+  }
+}
+
+export function assertJobExecutorConfigured() {
+  if (!shouldValidateProductionRuntime()) {
+    return;
+  }
+
+  if (env.redisUrl && !env.jobExecutorToken) {
+    throw new Error("JOB_EXECUTOR_TOKEN must be set when REDIS_URL is enabled in production.");
   }
 }
 
