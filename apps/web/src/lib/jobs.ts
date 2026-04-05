@@ -45,11 +45,19 @@ export async function dispatchJob(job: DispatchableAssuranceJob) {
     throw new Error("Redis queue is not available.");
   }
 
-  const queued = await queue.add(enrichedJob.name, enrichedJob.data);
-  await markJobQueued(jobRun.id, queued.id || null);
+  try {
+    const queued = await queue.add(enrichedJob.name, enrichedJob.data);
+    await markJobQueued(jobRun.id, queued.id || null);
 
-  return {
-    mode: "queue" as const,
-    queueId: queued.id,
-  };
+    return {
+      mode: "queue" as const,
+      queueId: queued.id,
+    };
+  } catch (error) {
+    await markJobFailed(
+      jobRun.id,
+      error instanceof Error ? error.message : "Queue enqueue failed.",
+    );
+    throw error;
+  }
 }
