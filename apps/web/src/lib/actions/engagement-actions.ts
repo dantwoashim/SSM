@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import {
   addMessage,
+  addManualScenario,
   audit,
   createInvite,
   convertLeadToEngagement,
@@ -23,9 +24,11 @@ import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
 import { sendInviteEmail, sendReportPublishedEmail } from "@/lib/email";
 import {
+  parseAttachmentLinkage,
   parseCreateEngagementForm,
   parseInviteForm,
   parseJobActionForm,
+  parseManualScenarioForm,
   parseMessageForm,
   parsePublishReportForm,
   parseScenarioReviewForm,
@@ -133,6 +136,20 @@ export async function updateScenarioResultAction(formData: FormData) {
   revalidatePath(`/app/engagements/${parsed.engagementId}`);
 }
 
+export async function addManualScenarioAction(formData: FormData) {
+  const session = await requireFounder();
+  const parsed = parseManualScenarioForm(formData);
+  await addManualScenario({
+    engagementId: parsed.engagementId,
+    title: parsed.title,
+    protocol: parsed.protocol,
+    executionMode: parsed.executionMode,
+    reviewerNotes: parsed.reviewerNotes,
+    actorName: session.name,
+  });
+  revalidatePath(`/app/engagements/${parsed.engagementId}`);
+}
+
 export async function addMessageAction(formData: FormData) {
   const parsed = parseMessageForm(formData);
   const engagementId = parsed.engagementId;
@@ -152,6 +169,7 @@ export async function uploadAttachmentAction(formData: FormData) {
   const session = await requireEngagementAccess(engagementId);
   const file = formData.get("file");
   const requestedVisibility = parseVisibility(formData);
+  const linkage = parseAttachmentLinkage(formData);
   const visibility = session.role === "founder" ? requestedVisibility : "shared";
 
   if (!(file instanceof File) || file.size === 0) {
@@ -171,6 +189,9 @@ export async function uploadAttachmentAction(formData: FormData) {
     storageKey,
     contentType: file.type || "application/octet-stream",
     size: file.size,
+    scenarioRunId: linkage.scenarioRunId,
+    findingId: linkage.findingId,
+    reportId: linkage.reportId,
   });
   revalidatePath(`/app/engagements/${engagementId}`);
 }
