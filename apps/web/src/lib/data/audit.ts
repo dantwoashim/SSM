@@ -8,8 +8,9 @@ export async function audit(
   entityType: string,
   entityId: string,
   metadata: Record<string, unknown> = {},
+  executor?: any,
 ) {
-  const db = await getDb();
+  const db = executor || (await getDb());
   await db.insert(auditLogs).values({
     id: makeId("audit"),
     actorName,
