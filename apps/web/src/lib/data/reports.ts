@@ -22,15 +22,20 @@ function buildReportSnapshot(input: {
   engagement: typeof engagements.$inferSelect;
   scenarioRows: Array<typeof scenarioRunsTable.$inferSelect>;
   findingRows: Array<typeof findingsTable.$inferSelect>;
+  attachmentRows: Array<typeof attachments.$inferSelect>;
 }): ReportSnapshot {
   const scenarios = input.scenarioRows.map((row) => {
     const definition = scenarioLibrary.find((scenario) => scenario.id === row.scenarioId);
+    const linkedAttachmentCount = input.attachmentRows.filter(
+      (attachment) => attachment.scenarioRunId === row.id,
+    ).length;
     return {
       id: row.scenarioId,
-      title: definition?.title || row.scenarioId,
+      title: row.title || definition?.title || row.scenarioId,
       protocol: (definition?.protocol || row.protocol) as "saml" | "oidc" | "scim" | "ops",
       outcome: row.outcome as "pending" | "passed" | "failed" | "skipped",
       reviewerNotes: row.reviewerNotes || "",
+      evidenceCount: linkedAttachmentCount || row.evidence.length,
     };
   });
 
@@ -42,6 +47,7 @@ function buildReportSnapshot(input: {
       summary: row.summary,
       remediation: row.remediation,
       buyerSafeNote: row.buyerSafeNote,
+      evidenceCount: input.attachmentRows.filter((attachment) => attachment.findingId === row.id).length,
     }));
 
   const snapshot: ReportSnapshot = {
@@ -81,6 +87,7 @@ export async function generateReport(engagementId: string, actorName: string) {
     engagement: detail.engagement,
     scenarioRows: detail.scenarioRows,
     findingRows: detail.findingRows,
+    attachmentRows: detail.attachmentRows,
   });
   const version = (detail.reportRows[0]?.version || 0) + 1;
   const report = {
