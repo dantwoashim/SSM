@@ -55,6 +55,8 @@ function buildScenarioFindingTemplate(input: {
   title: string | null;
   protocol: string;
   reviewerNotes: string;
+  customerVisibleSummary: string;
+  buyerSafeReportNote: string;
 }) {
   const template = buildFindingTemplate(input.scenarioId);
 
@@ -63,19 +65,20 @@ function buildScenarioFindingTemplate(input: {
   }
 
   const scenarioTitle = input.title || input.scenarioId;
-  return {
-    title: `${scenarioTitle} requires remediation`,
-    severity: "needs-clarification" as const,
-    customerImpact:
-      "A customer-specific identity scenario remains unresolved and should be reviewed before go-live.",
-    remediation:
-      "Reproduce the behavior, document the expected state, and assign a concrete remediation owner before rollout.",
-    buyerSafeNote:
-      input.reviewerNotes
-        ? `A manually scoped rollout scenario remains unresolved: ${input.reviewerNotes}`
-        : "A manually scoped rollout scenario remains unresolved and should be reviewed before launch.",
-  };
-}
+    return {
+      title: `${scenarioTitle} requires remediation`,
+      severity: "needs-clarification" as const,
+      customerImpact:
+        "A customer-specific identity scenario remains unresolved and should be reviewed before go-live.",
+      remediation:
+        "Reproduce the behavior, document the expected state, and assign a concrete remediation owner before rollout.",
+      buyerSafeNote:
+        input.buyerSafeReportNote
+          || input.customerVisibleSummary
+          || input.reviewerNotes
+          || "A manually scoped rollout scenario remains unresolved and should be reviewed before launch.",
+    };
+  }
 
 export async function convertLeadToEngagement(
   leadId: string,
@@ -302,10 +305,12 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
       .map((scenario) => ({
         scenarioId: scenario.scenarioId,
         title: scenario.title || scenario.scenarioId,
-        executionMode: scenario.executionMode as "manual" | "guided" | "automated",
-        protocol: scenario.protocol as "saml" | "oidc" | "scim" | "ops",
+        executionMode: scenario.executionMode as "manual" | "guided",
+        protocol: scenario.protocol as "saml" | "scim" | "ops",
         defaultSeverity: "needs-clarification" as const,
         reviewerNotes: scenario.reviewerNotes || "",
+        customerVisibleSummary: scenario.customerVisibleSummary || "",
+        buyerSafeReportNote: scenario.buyerSafeReportNote || "",
       }));
     const combinedScenarios = [...selected];
 
@@ -345,6 +350,8 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
           executionMode: scenario.executionMode,
           protocol: scenario.protocol,
           reviewerNotes: "reviewerNotes" in scenario ? scenario.reviewerNotes : "",
+          customerVisibleSummary: "customerVisibleSummary" in scenario ? scenario.customerVisibleSummary : "",
+          buyerSafeReportNote: "buyerSafeReportNote" in scenario ? scenario.buyerSafeReportNote : "",
           evidence: [],
           updatedAt: timestamp,
         })),
@@ -370,9 +377,11 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
 export async function addManualScenario(input: {
   engagementId: string;
   title: string;
-  protocol: "saml" | "oidc" | "scim" | "ops";
-  executionMode: "manual" | "guided" | "automated";
+  protocol: "saml" | "scim" | "ops";
+  executionMode: "manual" | "guided";
   reviewerNotes: string;
+  customerVisibleSummary: string;
+  buyerSafeReportNote: string;
   actorName: string;
 }) {
   return runInTransaction(async (db) => {
@@ -430,6 +439,8 @@ export async function addManualScenario(input: {
       executionMode: input.executionMode,
       protocol: input.protocol,
       reviewerNotes: input.reviewerNotes,
+      customerVisibleSummary: input.customerVisibleSummary,
+      buyerSafeReportNote: input.buyerSafeReportNote,
       evidence: [],
       updatedAt: timestamp,
     };
@@ -465,6 +476,8 @@ export async function updateScenarioRunResult(input: {
   scenarioRunId: string;
   outcome: "pending" | "passed" | "failed" | "skipped";
   reviewerNotes: string;
+  customerVisibleSummary: string;
+  buyerSafeReportNote: string;
   actorName: string;
 }) {
   return runInTransaction(async (db) => {
@@ -505,6 +518,8 @@ export async function updateScenarioRunResult(input: {
         outcome: input.outcome,
         status: input.outcome === "pending" ? "queued" : "reviewed",
         reviewerNotes: input.reviewerNotes,
+        customerVisibleSummary: input.customerVisibleSummary,
+        buyerSafeReportNote: input.buyerSafeReportNote,
         updatedAt: timestamp,
       })
       .where(eq(scenarioRuns.id, input.scenarioRunId));
@@ -519,6 +534,8 @@ export async function updateScenarioRunResult(input: {
       title: scenarioRun.title,
       protocol: scenarioRun.protocol,
       reviewerNotes: input.reviewerNotes,
+      customerVisibleSummary: input.customerVisibleSummary,
+      buyerSafeReportNote: input.buyerSafeReportNote,
     });
     const [existingFinding] = await db
       .select()
@@ -536,6 +553,8 @@ export async function updateScenarioRunResult(input: {
             severity: template.severity,
             customerImpact: template.customerImpact,
             summary: input.reviewerNotes || template.customerImpact,
+            customerSummary: input.customerVisibleSummary || template.customerImpact,
+            reportSummary: input.buyerSafeReportNote || template.buyerSafeNote,
             remediation: template.remediation,
             buyerSafeNote: template.buyerSafeNote,
             status: "open",
@@ -557,6 +576,8 @@ export async function updateScenarioRunResult(input: {
           severity: template.severity,
           customerImpact: template.customerImpact,
           summary: input.reviewerNotes || template.customerImpact,
+          customerSummary: input.customerVisibleSummary || template.customerImpact,
+          reportSummary: input.buyerSafeReportNote || template.buyerSafeNote,
           rootCause: null,
           remediation: template.remediation,
           ownerHint: "Engineering owner",
@@ -644,6 +665,7 @@ export async function registerAttachment(input: {
   visibility: "shared" | "internal";
   fileName: string;
   storageKey: string;
+  checksumSha256?: string | null;
   contentType: string;
   size: number;
   scenarioRunId?: string | null;
@@ -707,9 +729,12 @@ export async function registerAttachment(input: {
       visibility: input.visibility,
       fileName: input.fileName,
       storageKey: input.storageKey,
+      checksumSha256: input.checksumSha256 || null,
+      storageStatus: "stored",
       contentType: input.contentType,
       size: input.size,
       createdAt: now(),
+      deletedAt: null,
     };
     await db.insert(attachments).values(attachment);
 
