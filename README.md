@@ -10,6 +10,12 @@ Identity Go-Live Assurance is the application behind a service business for ente
 
 The output is not another dashboard nobody asked for. The output is the report that gets forwarded into the procurement thread.
 
+This repository will make the most sense to:
+
+- engineers building or evaluating enterprise identity workflows
+- founders moving a SaaS product upmarket
+- solutions teams that need a cleaner way to run identity readiness work
+
 ## Why this exists
 
 Enterprise identity work has an unpleasant shape.
@@ -67,6 +73,8 @@ It is built for the real operating constraints of an early product.
 - It supports a low-cost path now and a more formal deployment path later without changing the product model.
 
 In other words: this is not a toy landing page wrapped around a backlog. The useful part is already here.
+
+It is also opinionated in the right places. Customer contacts do not get internal notes. Evidence can be linked back to scenarios, findings, and reports. Background execution is optional, not required. The system can start cheap and get more formal later without turning into a rewrite.
 
 ## Running it locally
 
