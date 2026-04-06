@@ -119,6 +119,9 @@ export default function HomePage() {
             The artifact is the product. Engineering gets structured
             remediation; sales engineering gets a forwardable proof packet.
           </p>
+          <p className="muted">
+            The preview below is built from redacted demo data so visitors can inspect the structure without exposing a customer engagement.
+          </p>
         </div>
         <div className="layout-two mt-xl">
           <div>
