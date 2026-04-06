@@ -15,6 +15,7 @@
 - Engagement data is scoped to a named company and target customer
 - Evidence artifacts should be uploaded only to scoped engagement records
 - Reports are generated from structured findings and can be exported as PDFs
+- Customer-visible findings and report output are intentionally separate from operator notes
 
 ## Current compliance position
 
