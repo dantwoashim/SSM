@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { publishReportAction } from "@/lib/actions/engagement-actions";
+import { useActionState } from "react";
+import { publishReportStateAction } from "@/lib/actions/engagement-actions";
 import { titleCase } from "@/lib/format";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -17,9 +20,26 @@ export function ReportSection({
         readinessScore: number;
         version: number;
         status: string;
+        reportJson: {
+          summary: {
+            totalScenarios: number;
+            executedScenarios: number;
+            publication: {
+              canPublish: boolean;
+              requiresAcknowledgement: boolean;
+              blockingReasons: string[];
+              warnings: string[];
+            };
+          };
+        };
       }
     | undefined;
 }) {
+  const [publishState, publishAction] = useActionState(publishReportStateAction, {
+    error: "",
+    notice: "",
+  });
+
   return (
     <section className="detail-section">
       <h3>Latest report</h3>
@@ -39,19 +59,53 @@ export function ReportSection({
               <span className="metric-value status-label">{titleCase(latestReport.status)}</span>
               <span className="metric-label">Status</span>
             </div>
+            <div className="metric">
+              <span className="metric-value">
+                {latestReport.reportJson.summary.executedScenarios}/{latestReport.reportJson.summary.totalScenarios}
+              </span>
+              <span className="metric-label">Coverage</span>
+            </div>
           </div>
+          {latestReport.reportJson.summary.publication.blockingReasons.length > 0 ? (
+            <div className="callout mt-md">
+              <strong>Publication blocked</strong>
+              <ul>
+                {latestReport.reportJson.summary.publication.blockingReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {latestReport.reportJson.summary.publication.warnings.length > 0 ? (
+            <div className="callout mt-md">
+              <strong>Publication warnings</strong>
+              <ul>
+                {latestReport.reportJson.summary.publication.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="actions mt-lg">
             <Link className="button-secondary" href={`/api/reports/${latestReport.id}/pdf`}>
               Download PDF
             </Link>
             {founderView ? (
-              <form action={publishReportAction}>
+              <form action={publishAction}>
                 <input type="hidden" name="reportId" value={latestReport.id} />
                 <input type="hidden" name="engagementId" value={engagementId} />
+                {latestReport.reportJson.summary.publication.requiresAcknowledgement ? (
+                  <label className="checkbox-row">
+                    <input type="checkbox" name="acknowledgeWarnings" value="1" />
+                    <span>Acknowledge the remaining gaps before publishing.</span>
+                  </label>
+                ) : null}
                 <SubmitButton pendingLabel="Publishing report...">Publish report</SubmitButton>
               </form>
             ) : null}
           </div>
+          {publishState.error ? <p className="error-message mt-md">{publishState.error}</p> : null}
+          {!publishState.error && publishState.notice ? <p className="muted mt-md">{publishState.notice}</p> : null}
         </>
       ) : (
         <div className="empty-state">
