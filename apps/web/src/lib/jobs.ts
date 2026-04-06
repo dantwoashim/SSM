@@ -1,7 +1,7 @@
 import { type AssuranceJob, type DispatchableAssuranceJob } from "@assurance/core";
 import { env } from "./env";
 import { createJobRun, markJobFailed, markJobQueued } from "./data";
-import { executeQueuedJob } from "@assurance/service";
+import { executeQueuedJob, sendQueuedNotification } from "@assurance/service";
 import { getAssuranceQueue } from "./redis";
 
 async function processInline(job: AssuranceJob) {
@@ -68,4 +68,29 @@ export async function dispatchJob(job: DispatchableAssuranceJob) {
     );
     throw error;
   }
+}
+
+export async function dispatchNotificationJob(input: {
+  engagementId?: string | null;
+  actorName: string;
+  notificationId: string;
+}) {
+  if (!input.engagementId) {
+    queueMicrotask(() => {
+      void sendQueuedNotification(input.notificationId).catch(() => undefined);
+    });
+    return {
+      mode: "background" as const,
+      notificationId: input.notificationId,
+    };
+  }
+
+  return dispatchJob({
+    name: "notification.send",
+    data: {
+      engagementId: input.engagementId,
+      actorName: input.actorName,
+      notificationId: input.notificationId,
+    },
+  });
 }
