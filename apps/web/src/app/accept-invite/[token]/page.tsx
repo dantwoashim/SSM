@@ -36,7 +36,7 @@ export default async function AcceptInvitePage({
       <>
         <PageHeader
           eyebrow="Claim invite"
-          title={`Join ${invite.name} to review the engagement portal.`}
+          title="Review the engagement portal for this rollout."
           description={
             mode === "wrong-account"
               ? `This invite is for ${invite.email}. Sign out and continue with the matching account to claim access.`
@@ -64,7 +64,7 @@ export default async function AcceptInvitePage({
     <>
       <PageHeader
         eyebrow="Accept invite"
-        title={`Join ${invite.name} to review the engagement portal.`}
+        title="Review the engagement portal for this rollout."
         description={
           mode === "claim-access"
             ? `You are signed in as ${invite.email}. Claim access to add this engagement to your portal.`
