@@ -18,9 +18,9 @@ export const claimedFeatures = [
 ] as const;
 export type ClaimedFeature = (typeof claimedFeatures)[number];
 
-export const scenarioProtocols = ["saml", "oidc", "scim", "ops"] as const;
+export const scenarioProtocols = ["saml", "scim", "ops"] as const;
 export type ScenarioProtocol = (typeof scenarioProtocols)[number];
-export const scenarioExecutionModes = ["manual", "guided", "automated"] as const;
+export const scenarioExecutionModes = ["manual", "guided"] as const;
 export type ScenarioExecutionMode = (typeof scenarioExecutionModes)[number];
 
 export const severities = [
@@ -115,6 +115,18 @@ export interface ReportSummary {
   residualRisk: string;
   scopeBoundaries: string;
   readinessScore: number;
+  totalScenarios: number;
+  executedScenarios: number;
+  passedScenarios: number;
+  failedScenarios: number;
+  skippedScenarios: number;
+  pendingScenarios: number;
+  publication: {
+    canPublish: boolean;
+    requiresAcknowledgement: boolean;
+    blockingReasons: string[];
+    warnings: string[];
+  };
 }
 
 export interface ReportSnapshot {
@@ -129,13 +141,14 @@ export interface ReportSnapshot {
     title: string;
     protocol: ScenarioProtocol;
     outcome: ScenarioOutcome;
-    reviewerNotes: string;
+    customerSummary: string;
+    buyerSafeReportNote: string;
     evidenceCount: number;
   }>;
   findings: Array<{
     title: string;
     severity: Severity;
-    summary: string;
+    customerSummary: string;
     remediation: string;
     buyerSafeNote: string;
     evidenceCount: number;
