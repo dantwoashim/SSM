@@ -117,16 +117,23 @@ export function parseAcceptInviteForm(formData: FormData) {
       .max(128)
       .refine((value) => /[A-Z]/.test(value), "Password must include an uppercase letter.")
       .refine((value) => /[a-z]/.test(value), "Password must include a lowercase letter.")
-      .refine((value) => /[0-9]/.test(value), "Password must include a number."),
+      .refine((value) => /[0-9]/.test(value), "Password must include a number.")
+      .optional(),
+    mode: z.enum(["create-account", "claim-access"]).default("create-account"),
   });
 
   const result = schema.safeParse({
     token: stringValue(formData, "token"),
-    password: formData.get("password")?.toString() || "",
+    password: stringValue(formData, "password") || undefined,
+    mode: stringValue(formData, "mode") || "create-account",
   });
 
   if (!result.success) {
     throw makeValidationError(result.error);
+  }
+
+  if (result.data.mode === "create-account" && !result.data.password) {
+    throw new ActionValidationError("Password is required.");
   }
 
   return result.data;
@@ -383,6 +390,60 @@ export function validateAttachmentUpload(file: File) {
     throw new ActionValidationError(
       "Unsupported file type. Upload PDF, image, text, CSV, JSON, or ZIP evidence only.",
     );
+  }
+}
+
+function hasPrefix(bytes: Uint8Array, prefix: number[]) {
+  return prefix.every((value, index) => bytes[index] === value);
+}
+
+function looksLikeText(bytes: Uint8Array) {
+  const sample = bytes.slice(0, 512);
+
+  for (const value of sample) {
+    if (value === 9 || value === 10 || value === 13) {
+      continue;
+    }
+
+    if (value < 32) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function validateAttachmentContent(bytes: Uint8Array, contentType: string, fileName: string) {
+  const normalizedType = contentType || "application/octet-stream";
+
+  if (normalizedType === "application/pdf" && !hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46])) {
+    throw new ActionValidationError("The uploaded PDF file does not match its declared file type.");
+  }
+
+  if (normalizedType === "image/png" && !hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47])) {
+    throw new ActionValidationError("The uploaded PNG file does not match its declared file type.");
+  }
+
+  if (normalizedType === "image/jpeg" && !hasPrefix(bytes, [0xff, 0xd8, 0xff])) {
+    throw new ActionValidationError("The uploaded JPEG file does not match its declared file type.");
+  }
+
+  if (
+    normalizedType === "image/webp"
+    && !(hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP")
+  ) {
+    throw new ActionValidationError("The uploaded WEBP file does not match its declared file type.");
+  }
+
+  if (normalizedType === "application/zip" && !hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04])) {
+    throw new ActionValidationError("The uploaded ZIP file does not match its declared file type.");
+  }
+
+  if (
+    (normalizedType === "text/plain" || normalizedType === "text/csv" || normalizedType === "application/json")
+    && !looksLikeText(bytes)
+  ) {
+    throw new ActionValidationError(`The uploaded ${fileName} does not look like a valid text-based artifact.`);
   }
 }
 
