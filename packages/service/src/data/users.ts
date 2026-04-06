@@ -84,21 +84,12 @@ export async function authenticateUser(email: string, password: string) {
   return matches ? user : null;
 }
 
-export async function bumpSessionVersion(userId: string) {
+export async function getUserByEmail(email: string) {
   const db = await getDb();
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-
-  if (!user) {
-    throw new Error("User not found.");
-  }
-
-  const nextSessionVersion = user.sessionVersion + 1;
-  await db
-    .update(users)
-    .set({
-      sessionVersion: nextSessionVersion,
-    })
-    .where(eq(users.id, userId));
-
-  return nextSessionVersion;
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+  return user ?? null;
 }
