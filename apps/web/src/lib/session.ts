@@ -63,7 +63,7 @@ export async function readSessionCookie(token?: string | null): Promise<SessionP
       return null;
     }
 
-    const { getUserById } = await import("./data/access");
+    const { getUserById } = await import("@assurance/service/access");
     const user = await getUserById(payload.sub);
 
     if (!user || user.sessionVersion !== payload.sessionVersion) {

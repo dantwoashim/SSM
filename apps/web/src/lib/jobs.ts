@@ -1,7 +1,7 @@
 import { type AssuranceJob, type DispatchableAssuranceJob } from "@assurance/core";
 import { env } from "./env";
 import { createJobRun, markJobFailed, markJobQueued } from "./data";
-import { executeQueuedJob } from "./job-execution";
+import { executeQueuedJob } from "@assurance/service";
 import { getAssuranceQueue } from "./redis";
 
 async function processInline(job: AssuranceJob) {
