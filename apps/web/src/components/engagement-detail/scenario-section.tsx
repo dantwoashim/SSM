@@ -9,20 +9,44 @@ export function ScenarioSection({
   runLabel,
   scenarioRows,
   attachmentRows,
+  customerScenarioRows,
 }: {
   founderView: boolean;
   engagementId: string;
   runLabel: string | null;
   scenarioRows: ScenarioReview[];
   attachmentRows: AttachmentView[];
+  customerScenarioRows: Array<{
+    id: string;
+    title: string;
+    protocol: string;
+    outcome: string;
+    customerSummary: string;
+    evidenceCount: number;
+  }>;
 }) {
   return (
     <section className="detail-section">
       <h3>{runLabel || "No test plan yet"}</h3>
       {!founderView ? (
-        <div className="empty-state">
-          Scenario execution controls are only visible to founder operators.
-        </div>
+        customerScenarioRows.length === 0 ? (
+          <div className="empty-state">
+            Scenario execution updates will appear here after a report is published.
+          </div>
+        ) : (
+          <div className="activity-feed">
+            {customerScenarioRows.map((row) => (
+              <div key={row.id} className="activity-item">
+                <strong>{row.title}</strong>
+                <span className="activity-meta">
+                  {row.protocol} / {titleCase(row.outcome)}
+                  {row.evidenceCount > 0 ? ` / ${row.evidenceCount} evidence` : ""}
+                </span>
+                <p className="list-item-body">{row.customerSummary}</p>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <>
           <form action={addManualScenarioAction} className="form-fields">
@@ -40,7 +64,6 @@ export function ScenarioSection({
                 <label htmlFor="manual-protocol">Protocol</label>
                 <select id="manual-protocol" name="protocol" defaultValue="ops">
                   <option value="saml">SAML</option>
-                  <option value="oidc">OIDC</option>
                   <option value="scim">SCIM</option>
                   <option value="ops">Operational</option>
                 </select>
@@ -50,15 +73,30 @@ export function ScenarioSection({
                 <select id="manual-execution-mode" name="executionMode" defaultValue="manual">
                   <option value="manual">Manual</option>
                   <option value="guided">Guided</option>
-                  <option value="automated">Automated</option>
                 </select>
               </div>
               <div className="field">
-                <label htmlFor="manual-reviewer-notes">Initial notes</label>
+                <label htmlFor="manual-reviewer-notes">Operator notes</label>
                 <textarea
                   id="manual-reviewer-notes"
                   name="reviewerNotes"
                   placeholder="Why this scenario exists, what triggered it, and what evidence is expected."
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="manual-customer-summary">Customer-visible summary</label>
+                <textarea
+                  id="manual-customer-summary"
+                  name="customerVisibleSummary"
+                  placeholder="What the customer should understand about this scenario and its current state."
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="manual-report-note">Buyer-safe report note</label>
+                <textarea
+                  id="manual-report-note"
+                  name="buyerSafeReportNote"
+                  placeholder="What should appear in the assurance report if this scenario becomes relevant."
                 />
               </div>
             </div>
@@ -98,11 +136,27 @@ export function ScenarioSection({
                         </select>
                       </div>
                       <div className="field">
-                        <label htmlFor={`notes-${row.id}`}>Reviewer notes</label>
+                        <label htmlFor={`notes-${row.id}`}>Operator notes</label>
                         <textarea
                           id={`notes-${row.id}`}
                           name="reviewerNotes"
                           defaultValue={row.reviewerNotes || ""}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`customer-summary-${row.id}`}>Customer-visible summary</label>
+                        <textarea
+                          id={`customer-summary-${row.id}`}
+                          name="customerVisibleSummary"
+                          defaultValue={row.customerVisibleSummary || ""}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`report-note-${row.id}`}>Buyer-safe report note</label>
+                        <textarea
+                          id={`report-note-${row.id}`}
+                          name="buyerSafeReportNote"
+                          defaultValue={row.buyerSafeReportNote || ""}
                         />
                       </div>
                     </div>
