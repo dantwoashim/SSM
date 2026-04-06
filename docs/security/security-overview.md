@@ -9,6 +9,7 @@
 - Background notification outbox records instead of synchronous request-path delivery
 - Founder-operated backup steps for local mode, plus deployment and readiness checks for hosted mode
 - Request correlation through `x-request-id` response headers
+- Audit rows now preserve actor/request context when the web layer has that information
 
 ## Data handling
 
