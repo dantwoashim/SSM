@@ -22,6 +22,18 @@ async function executeSql(statement: string) {
   await rawClient.unsafe(statement);
 }
 
+export async function querySql<T = Record<string, unknown>>(statement: string): Promise<T[]> {
+  await applyMigrations();
+
+  if (typeof rawClient.query === "function") {
+    const result = await rawClient.query(statement);
+    return (result?.rows || []) as T[];
+  }
+
+  const result = await rawClient.unsafe(statement);
+  return Array.isArray(result) ? (result as T[]) : [];
+}
+
 async function executeMigration(id: string, sql: string) {
   try {
     await executeSql(sql);
