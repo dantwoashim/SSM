@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   getEngagementDetail,
   hasEngagementAccess,
+  listNotificationsForEngagement,
   listOpenInvitesForEngagement,
   listScenariosForRun,
 } from "@/lib/data";
@@ -12,6 +13,7 @@ import { CustomerAccessSection } from "@/components/engagement-detail/customer-a
 import { FindingsSection } from "@/components/engagement-detail/findings-section";
 import { JobHistorySection } from "@/components/engagement-detail/job-history-section";
 import { MessagesSection } from "@/components/engagement-detail/messages-section";
+import { NotificationSection } from "@/components/engagement-detail/notification-section";
 import { OverviewSection } from "@/components/engagement-detail/overview-section";
 import { ReportSection } from "@/components/engagement-detail/report-section";
 import { ScenarioSection } from "@/components/engagement-detail/scenario-section";
@@ -72,6 +74,8 @@ export default async function EngagementDetailPage({
   const jobRows: JobRunView[] = detail.jobRows;
   const openInvites =
     founderView ? await listOpenInvitesForEngagement(detail.engagement.id) : [];
+  const notificationRows =
+    founderView ? await listNotificationsForEngagement(detail.engagement.id) : [];
 
   return (
     <div className="detail-grid">
@@ -82,8 +86,9 @@ export default async function EngagementDetailPage({
         runLabel={detail.latestRun?.label || null}
         scenarioRows={scenarioRows}
         attachmentRows={attachmentRows}
+        customerScenarioRows={latestReport?.reportJson?.scenarios || []}
       />
-      <FindingsSection findingRows={findingRows} attachmentRows={attachmentRows} />
+      <FindingsSection findingRows={findingRows} attachmentRows={attachmentRows} founderView={founderView} />
       <ReportSection
         founderView={founderView}
         engagementId={detail.engagement.id}
@@ -102,6 +107,7 @@ export default async function EngagementDetailPage({
         findingRows={allFindingRows}
         reportRows={reportRows}
       />
+      {founderView ? <NotificationSection notificationRows={notificationRows} /> : null}
       {founderView ? <JobHistorySection jobRows={jobRows} /> : null}
       <CustomerAccessSection
         founderView={founderView}
