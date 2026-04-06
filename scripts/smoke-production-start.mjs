@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
+import { waitForHttp } from "./wait-for-http.mjs";
 
 const repositoryRoot = process.cwd();
 const stateRoot = `${repositoryRoot}/.runtime/smoke-state`;
@@ -40,25 +41,6 @@ function run(command, args, env = baseEnv) {
   });
 }
 
-async function waitFor(url, timeoutMs = 60_000) {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        return;
-      }
-    } catch {
-      // Keep polling until the server is up or the timeout expires.
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  throw new Error(`Timed out waiting for ${url}`);
-}
-
 await rm(stateRoot, { recursive: true, force: true }).catch(() => undefined);
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 await run(npmCommand, ["run", "seed", "--workspace", "@assurance/web"]);
@@ -76,9 +58,9 @@ const child = process.platform === "win32"
     });
 
 try {
-  await waitFor("http://127.0.0.1:3011/api/healthz");
-  await waitFor("http://127.0.0.1:3011/api/readyz");
-  await waitFor("http://127.0.0.1:3011/login");
+  await waitForHttp("http://127.0.0.1:3011/api/healthz");
+  await waitForHttp("http://127.0.0.1:3011/api/readyz");
+  await waitForHttp("http://127.0.0.1:3011/login");
   console.log("production start smoke passed");
 } finally {
   child.kill("SIGTERM");
