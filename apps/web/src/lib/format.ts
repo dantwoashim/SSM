@@ -23,20 +23,37 @@ function asRealDate(value: string) {
   return date;
 }
 
+function asRealTimestamp(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
 export function formatDate(value?: string | null) {
   if (!value) {
     return "Not set";
   }
 
-  const parsed = asRealDate(value);
-
-  if (!parsed) {
-    return "Invalid date";
+  const dateOnly = asRealDate(value);
+  if (dateOnly) {
+    return new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+    }).format(dateOnly);
   }
 
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-  }).format(parsed);
+  const timestamp = asRealTimestamp(value);
+  if (timestamp) {
+    return new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(timestamp);
+  }
+
+  return "Invalid date";
 }
 
 export function titleCase(value: string) {
