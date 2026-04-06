@@ -196,3 +196,21 @@ test("a passing retest resolves the seeded open finding", async ({ page }) => {
 
   await expect(page.getByText("No findings yet. Failed scenarios promote into structured remediation items.")).toBeVisible();
 });
+
+test("invalid text uploads are rejected before artifact registration", async ({ page }) => {
+  await signInAsFounder(page);
+  await page.goto("/app");
+  await Promise.all([
+    page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
+    page.getByRole("link", { name: /Acme SaaS <> Northwind Financial Deal Rescue/i }).click(),
+  ]);
+
+  await page.getByLabel("Upload artifact").setInputFiles({
+    name: "broken.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from([0x00, 0x01, 0x02, 0x03]),
+  });
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(page.getByText(/does not look like a valid text-based artifact/i)).toBeVisible();
+  await expect(page.locator(".activity-item").filter({ hasText: "broken.txt" })).toHaveCount(0);
+});
