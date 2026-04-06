@@ -1,6 +1,7 @@
 import {
   GetObjectCommand,
   HeadBucketCommand,
+  DeleteObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -128,6 +129,22 @@ export async function storeArtifact(
   const outputPath = resolveLocalPath(storageKey);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, bytes);
+}
+
+export async function deleteArtifact(storageKey: string) {
+  if (hasS3Config()) {
+    const client = getS3Client();
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: env.s3.bucket,
+        Key: storageKey,
+      }),
+    );
+    return;
+  }
+
+  const outputPath = resolveLocalPath(storageKey);
+  await rm(outputPath, { force: true });
 }
 
 export async function getArtifactDownload(storageKey: string, contentType: string) {
