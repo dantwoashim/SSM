@@ -1,4 +1,5 @@
 import { submitLeadAndRedirectAction } from "@/lib/actions/public-actions";
+import { ClaimedFeatureSelector } from "@/components/claimed-feature-selector";
 import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
@@ -128,13 +129,9 @@ export default async function IntakePage({
             />
           </div>
           <div className="field-wide">
-            <label htmlFor="requiredFlows">Claimed / required flows</label>
-            <input
-              id="requiredFlows"
-              name="requiredFlows"
-              type="text"
-              placeholder="sp-initiated-sso, scim-create, group-role-mapping"
-              required
+            <ClaimedFeatureSelector
+              fieldName="requiredFlows"
+              legend="Claimed / required flows"
             />
           </div>
           <div className="field-wide">
