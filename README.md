@@ -1,54 +1,82 @@
 # Identity Go-Live Assurance
 
-Enterprise identity failures do not look dramatic in a slide deck. They look like a deal that stops moving.
+Most enterprise deals do not die because a vendor forgot to check a box on a pricing page.
 
-A vendor says it supports SSO and SCIM. The buyer's IAM team asks a few boring questions. Then the rollout hits the parts nobody exercised properly: IdP-initiated login, group-to-role mapping, JIT provisioning, deprovisioning, duplicate identities, tenant isolation, certificate rollover, or some customer-specific edge case that never showed up in the happy path.
+They die when the buyer's identity team tries to wire the product into the real world and finds the messy parts: group mapping that does not line up with roles, SCIM deprovisioning that never quite lands, JIT provisioning with duplicate users, IdP-initiated login edge cases, tenant isolation problems, certificate rollover surprises, and all the quiet assumptions hiding behind "we support SAML and SCIM."
 
-That is the problem this repository is built to solve.
+This repository is built around that moment.
 
-Identity Go-Live Assurance is a service-backed application for running enterprise identity readiness engagements and producing the report that buyers, security teams, and implementation owners actually need: clear scope, tested scenarios, evidence, findings, remediation guidance, and a defensible readiness signal.
+Identity Go-Live Assurance is the application behind a service business for enterprise identity readiness. It gives a delivery team one place to intake a customer request, open an engagement, run a test plan, collect evidence, record findings, generate a buyer-safe report, and share only the right information with the customer.
+
+The output is not another dashboard nobody asked for. The output is the report that gets forwarded into the procurement thread.
+
+## Why this exists
+
+Enterprise identity work has an unpleasant shape.
+
+The protocols are standardized enough for everyone to say they support them, but not standardized enough for real rollouts to behave the same way across tenants, providers, group models, and customer policies. That gap is where deals slow down.
+
+This codebase exists to close that gap with something concrete:
+
+- a scoped engagement
+- a scenario plan
+- recorded evidence
+- structured findings
+- a report a buyer can actually use
 
 ## What the product does
 
-In practical terms, the system supports the full operating loop:
+From the outside, the workflow is simple.
 
-1. Capture a real prospect or customer request through intake.
-2. Turn that request into a named engagement.
-3. Generate a scenario plan from the target IdP and required features.
-4. Record execution results, findings, evidence, and operator notes.
-5. Generate a structured assurance report and export it as a PDF.
-6. Invite customer contacts into a scoped portal view without exposing internal-only material.
+1. A SaaS vendor or implementation lead submits an intake request.
+2. The request becomes a named engagement for a specific customer and IdP.
+3. The system builds a plan from the required identity features.
+4. Reviewers execute scenarios, attach evidence, and record outcomes.
+5. Failed scenarios become findings with remediation guidance.
+6. The application drafts an assurance report and exports a PDF.
+7. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
 
-This is not a generic auth boilerplate repo. It is an operating system for a founder or small delivery team doing real enterprise identity work under real deadlines.
+That is the whole point of the product. It should be possible to go from "the buyer needs proof this week" to a defensible package without juggling spreadsheets, screenshots, and email threads.
 
-## Repository layout
+## What lives in this repository
 
-The repository is split along operational boundaries.
+The repository is split by responsibility.
 
 - `apps/web`
-  The product surface. Marketing pages, intake flow, founder portal, customer portal, report export, attachments, invite flow, and API routes all live here.
+  The actual product surface: intake, founder portal, customer portal, reports, attachments, invites, and API routes.
 
 - `packages/core`
-  Shared domain logic. Identity scenario definitions, taxonomy, report scoring, report rendering helpers, and sample snapshots.
+  Shared domain logic: scenario definitions, identity feature taxonomy, report scoring, report rendering helpers, and sample report data.
 
 - `packages/service`
-  Shared application and data layer. Database access, migrations, audit logging, RBAC, background job execution, rate limiting, and service-level workflows.
+  The application and data layer: migrations, database access, audit logging, access control, rate limits, service workflows, and direct job execution.
 
 - `packages/worker`
-  Optional queued execution path for Redis/BullMQ-backed job processing.
+  Optional queue-backed execution for deployments that use Redis/BullMQ.
 
 - `tests/e2e`
-  Browser coverage for the critical flows: intake, engagement creation, report/test-plan flow, invite issuance, artifact handling, and customer access.
+  Browser coverage for the paths that matter: intake, engagement creation, test-plan generation, invite flow, artifact access, and customer-scoped visibility.
+
+## What is good about this system
+
+It is built for the real operating constraints of an early product.
+
+- It runs in a cheap founder-operated mode without pretending that everything must be enterprise infrastructure on day one.
+- It keeps the domain model explicit. The scenario library, finding structure, report shape, and visibility rules are first-class.
+- It treats audit trails and scoped access as product features, not cleanup work.
+- It supports a low-cost path now and a more formal deployment path later without changing the product model.
+
+In other words: this is not a toy landing page wrapped around a backlog. The useful part is already here.
 
 ## Running it locally
 
 Requirements:
 
-- Node.js 22 or newer
+- Node.js 22+
 - npm
 - PowerShell if you want the bundled Windows helper scripts
 
-Install dependencies and start the app:
+Quick start:
 
 ```powershell
 npm install
@@ -59,13 +87,13 @@ npm run dev
 
 Then open [http://localhost:3000](http://localhost:3000).
 
-The seed step creates a founder account and demo data so you can inspect the system without inventing records from scratch.
+The seed step creates a founder account and sample engagement data so you can walk the system end to end without fabricating records by hand.
 
 ## Environment model
 
-The smallest useful local configuration lives in [apps/web/.env.example](apps/web/.env.example).
+The minimum local configuration lives in [apps/web/.env.example](apps/web/.env.example).
 
-For local work, these values matter:
+For local use, these values matter:
 
 - `APP_URL`
 - `SESSION_SECRET`
@@ -73,16 +101,16 @@ For local work, these values matter:
 - `FOUNDER_PASSWORD`
 - `FOUNDER_NAME`
 
-Everything else is optional in founder-operated mode.
+The rest is optional in founder-operated mode.
 
-The application is intentionally tolerant of missing infrastructure during early operation:
+The system is intentionally tolerant of missing infrastructure in that mode:
 
-- no `DATABASE_URL` -> local PGlite
-- no `REDIS_URL` -> inline execution
-- no email provider -> manual invite sharing
-- no S3-compatible storage -> local artifact storage
+- no `DATABASE_URL` means local PGlite
+- no `REDIS_URL` means inline execution
+- no email provider means manual invite sharing
+- no S3-compatible storage means local artifact storage
 
-That is by design. The system should be usable before the infrastructure budget catches up.
+That is deliberate. The product should still work before the infra budget shows up.
 
 ## Common commands
 
@@ -99,41 +127,30 @@ npm run build
 npm run worker
 ```
 
-## Running modes
+## Deployment notes
 
-There are two sensible ways to operate this repository.
+There are two realistic operating modes.
 
 ### Founder-operated mode
 
-Run the app on a local machine, optionally expose it with Cloudflare Tunnel, and operate engagements directly. This is the cheapest path and the right one for early pilots, as long as you are honest about the tradeoff: the machine is the server.
+Run it on your own machine, optionally publish it through Cloudflare Tunnel, and use it directly for pilots and early delivery. That path is cheap and honest about the tradeoff: the machine is the server.
 
 See [docs/deployment/cloudflare-tunnel-free.md](docs/deployment/cloudflare-tunnel-free.md).
 
 ### Hosted mode
 
-When the workflow is proven and uptime matters more than thrift, the codebase already supports the normal upgrades:
+When uptime matters more than thrift, the codebase already supports the usual upgrades:
 
 - Postgres instead of local PGlite
-- Redis-backed jobs instead of inline execution
+- Redis-backed workers instead of inline execution
 - S3-compatible object storage instead of local disk
 - transactional email delivery
 
-No redesign is required to make that move. The application model stays the same.
-
-## Notes for engineers evaluating the code
-
-The design bias here is deliberate.
-
-- Strong domain types matter more than framework cleverness.
-- The product should degrade cleanly when infrastructure is missing.
-- Auditability and access control come before cosmetic abstractions.
-- The critical path is the engagement workflow and the report, not a dashboard for its own sake.
-
-If you are reading this as a software project, the most important parts are not the landing page or the queue setup. They are the scenario model, the report structure, the access boundaries, and the operating flow from intake to buyer-facing artifact.
+No redesign is required to make that move. The workflow stays the same.
 
 ## Documentation
 
-The public repo keeps a short set of docs that are worth reading:
+If you want the short version first, read these:
 
 - [docs/deployment.md](docs/deployment.md)
 - [docs/deployment/cloudflare-tunnel-free.md](docs/deployment/cloudflare-tunnel-free.md)
@@ -141,6 +158,6 @@ The public repo keeps a short set of docs that are worth reading:
 
 ## Current state
 
-This repository is a working product with real operator workflows, not a speculative scaffold.
+This repository is a working product for a service-led business.
 
-It is also honest about what it is today: software that supports a service-led business. The system already handles the operational core of that business. More execution can be automated later, but the useful part exists now.
+It does not pretend the delivery work is fully automated. It does the more important thing: it gives that work a rigorous operating system, a clean evidence trail, and a report that can survive contact with a buyer's identity team.
