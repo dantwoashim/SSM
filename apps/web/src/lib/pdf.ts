@@ -77,7 +77,7 @@ export async function renderReportPdf(snapshot: ReportSnapshot) {
   drawLine("Scenario Results", { bold: true, size: 14 });
   for (const scenario of snapshot.scenarios) {
     drawLine(`${scenario.title} (${scenario.protocol}) - ${scenario.outcome}`, { bold: true });
-    for (const line of wrapText(scenario.reviewerNotes || "No reviewer note recorded.")) {
+    for (const line of wrapText(scenario.buyerSafeReportNote || "No buyer-safe note recorded.")) {
       drawLine(line);
     }
   }
@@ -89,7 +89,7 @@ export async function renderReportPdf(snapshot: ReportSnapshot) {
   } else {
     for (const finding of snapshot.findings) {
       drawLine(`${finding.title} [${finding.severity}]`, { bold: true });
-      for (const line of wrapText(finding.summary)) {
+      for (const line of wrapText(finding.customerSummary)) {
         drawLine(line);
       }
       for (const line of wrapText(`Remediation: ${finding.remediation}`)) {
