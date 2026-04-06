@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, index, uniqueIndex } from "drizzle-orm/pg-core";
 import type {
   ClaimedFeature,
   EngagementStatus,
@@ -41,17 +41,26 @@ export const invites = pgTable("invites", {
   createdAt: text("created_at").notNull(),
 });
 
-export const engagementMemberships = pgTable("engagement_memberships", {
-  id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
-    onDelete: "cascade",
+export const engagementMemberships = pgTable(
+  "engagement_memberships",
+  {
+    id: text("id").primaryKey(),
+    engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+      onDelete: "cascade",
+    }),
+    userId: text("user_id").notNull().references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    role: text("role").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    engagementUserUnique: uniqueIndex("engagement_memberships_engagement_user_idx").on(
+      table.engagementId,
+      table.userId,
+    ),
   }),
-  userId: text("user_id").notNull().references(() => users.id, {
-    onDelete: "cascade",
-  }),
-  role: text("role").notNull(),
-  createdAt: text("created_at").notNull(),
-});
+);
 
 export const leads = pgTable("leads", {
   id: text("id").primaryKey(),
@@ -130,29 +139,49 @@ export const scenarioRuns = pgTable("scenario_runs", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const findings = pgTable("findings", {
-  id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
-    onDelete: "cascade",
+export const findings = pgTable(
+  "findings",
+  {
+    id: text("id").primaryKey(),
+    engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+      onDelete: "cascade",
+    }),
+    testRunId: text("test_run_id").notNull().references(() => testRuns.id, {
+      onDelete: "cascade",
+    }),
+    scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
+      onDelete: "set null",
+    }),
+    findingKey: text("finding_key"),
+    openedInRunId: text("opened_in_run_id").references(() => testRuns.id, {
+      onDelete: "set null",
+    }),
+    lastObservedInRunId: text("last_observed_in_run_id").references(() => testRuns.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    severity: text("severity").$type<Severity>().notNull(),
+    customerImpact: text("customer_impact").notNull(),
+    summary: text("summary").notNull(),
+    rootCause: text("root_cause"),
+    remediation: text("remediation").notNull(),
+    ownerHint: text("owner_hint"),
+    buyerSafeNote: text("buyer_safe_note").notNull(),
+    status: text("status").notNull(),
+    resolvedAt: text("resolved_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    engagementStatusIdx: index("findings_engagement_status_idx").on(table.engagementId, table.status),
+    testRunIdx: index("findings_test_run_idx").on(table.testRunId),
+    scenarioRunIdx: index("findings_scenario_run_idx").on(table.scenarioRunId),
+    engagementFindingKeyIdx: uniqueIndex("findings_engagement_finding_key_idx").on(
+      table.engagementId,
+      table.findingKey,
+    ),
   }),
-  testRunId: text("test_run_id").notNull().references(() => testRuns.id, {
-    onDelete: "cascade",
-  }),
-  scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
-    onDelete: "set null",
-  }),
-  title: text("title").notNull(),
-  severity: text("severity").$type<Severity>().notNull(),
-  customerImpact: text("customer_impact").notNull(),
-  summary: text("summary").notNull(),
-  rootCause: text("root_cause"),
-  remediation: text("remediation").notNull(),
-  ownerHint: text("owner_hint"),
-  buyerSafeNote: text("buyer_safe_note").notNull(),
-  status: text("status").notNull(),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-});
+);
 
 export const reports = pgTable("reports", {
   id: text("id").primaryKey(),
@@ -223,6 +252,29 @@ export const workerHeartbeats = pgTable("worker_heartbeats", {
   stoppedAt: text("stopped_at"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
 });
+
+export const notificationOutbox = pgTable(
+  "notification_outbox",
+  {
+    id: text("id").primaryKey(),
+    engagementId: text("engagement_id").references(() => engagements.id, {
+      onDelete: "cascade",
+    }),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull(),
+    lastError: text("last_error"),
+    provider: text("provider"),
+    providerMessageId: text("provider_message_id"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    deliveredAt: text("delivered_at"),
+  },
+  (table) => ({
+    statusIdx: index("notification_outbox_status_idx").on(table.status, table.updatedAt),
+    engagementIdx: index("notification_outbox_engagement_idx").on(table.engagementId, table.createdAt),
+  }),
+);
 
 export const auditLogs = pgTable("audit_logs", {
   id: text("id").primaryKey(),
