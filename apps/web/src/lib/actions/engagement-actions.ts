@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
 import { assertSameOriginRequest, getRequestMetadata } from "@/lib/request-context";
-import { storeArtifact } from "@/lib/storage/provider";
+import { deleteArtifact, storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
 import { logError } from "@/lib/logger";
@@ -137,6 +138,8 @@ export async function updateScenarioResultAction(formData: FormData) {
     scenarioRunId: parsed.scenarioRunId,
     outcome: parsed.outcome,
     reviewerNotes: parsed.reviewerNotes,
+    customerVisibleSummary: parsed.customerVisibleSummary,
+    buyerSafeReportNote: parsed.buyerSafeReportNote,
     actorName: session.name,
   });
   revalidatePath(`/app/engagements/${parsed.engagementId}`);
@@ -151,6 +154,8 @@ export async function addManualScenarioAction(formData: FormData) {
     protocol: parsed.protocol,
     executionMode: parsed.executionMode,
     reviewerNotes: parsed.reviewerNotes,
+    customerVisibleSummary: parsed.customerVisibleSummary,
+    buyerSafeReportNote: parsed.buyerSafeReportNote,
     actorName: session.name,
   });
   revalidatePath(`/app/engagements/${parsed.engagementId}`);
@@ -188,18 +193,24 @@ export async function uploadAttachmentAction(formData: FormData) {
   const safeFileName = sanitizeAttachmentFileName(file.name);
   const storageKey = `${engagementId}/${crypto.randomUUID()}-${safeFileName}`;
   await storeArtifact(storageKey, safeFileName, bytes, file.type || "application/octet-stream");
-  await registerAttachment({
-    engagementId,
-    uploadedBy: session.name,
-    visibility,
-    fileName: safeFileName,
-    storageKey,
-    contentType: file.type || "application/octet-stream",
-    size: file.size,
-    scenarioRunId: linkage.scenarioRunId,
-    findingId: linkage.findingId,
-    reportId: linkage.reportId,
-  });
+  try {
+    await registerAttachment({
+      engagementId,
+      uploadedBy: session.name,
+      visibility,
+      fileName: safeFileName,
+      storageKey,
+      checksumSha256: createHash("sha256").update(bytes).digest("hex"),
+      contentType: file.type || "application/octet-stream",
+      size: file.size,
+      scenarioRunId: linkage.scenarioRunId,
+      findingId: linkage.findingId,
+      reportId: linkage.reportId,
+    });
+  } catch (error) {
+    await deleteArtifact(storageKey).catch(() => undefined);
+    throw error;
+  }
   revalidatePath(`/app/engagements/${engagementId}`);
 }
 
@@ -236,9 +247,10 @@ export async function generateReportAction(formData: FormData) {
 
 export async function publishReportAction(formData: FormData) {
   const session = await requireFounder();
+  const requestMeta = await getRequestMetadata();
   const parsed = parsePublishReportForm(formData);
   const { reportId, engagementId } = parsed;
-  await publishReport(reportId, session.name);
+  await publishReport(reportId, session.name, parsed.acknowledgeWarnings);
   const detail = await getEngagementDetail(engagementId);
 
   if (detail) {
@@ -250,6 +262,7 @@ export async function publishReportAction(formData: FormData) {
       const notification = await queueNotification({
         engagementId,
         actorName: session.name,
+        idempotencyKey: `report:${reportId}:${recipient.email}`,
         payload: {
           type: "report-published",
           to: recipient.email,
@@ -264,14 +277,36 @@ export async function publishReportAction(formData: FormData) {
         notificationId: notification.id,
       });
       await audit(session.name, "report_notification_queued", "report", reportId, {
+        actorId: session.sub,
+        actorRole: session.role,
         engagementId,
         recipientEmail: recipient.email,
         notificationId: notification.id,
+        requestId: requestMeta.requestId,
+        requestIp: requestMeta.requestIp,
       });
     }
   }
 
   revalidatePath(`/app/engagements/${engagementId}`);
+}
+
+export async function publishReportStateAction(
+  _previousState: { error: string; notice: string } | undefined,
+  formData: FormData,
+) {
+  try {
+    await publishReportAction(formData);
+    return {
+      error: "",
+      notice: "Report published successfully.",
+    };
+  } catch (error) {
+    return {
+      error: validationMessage(error),
+      notice: "",
+    };
+  }
 }
 
 export async function createInviteAction(
@@ -280,6 +315,7 @@ export async function createInviteAction(
 ) {
   try {
     const session = await requireFounder();
+    const requestMeta = await getRequestMetadata();
     const parsed = parseInviteForm(formData);
     const engagementId = parsed.engagementId;
     const created = await createInvite({
@@ -296,6 +332,7 @@ export async function createInviteAction(
       const notification = await queueNotification({
         engagementId,
         actorName: session.name,
+        idempotencyKey: `invite:${created.invite.id}`,
         payload: {
           type: "invite",
           to: created.invite.email,
@@ -305,16 +342,23 @@ export async function createInviteAction(
           inviteUrl: created.inviteUrl,
         },
       });
-      await dispatchNotificationJob({
+      const dispatchResult = await dispatchNotificationJob({
         engagementId,
         actorName: session.name,
         notificationId: notification.id,
       });
       await audit(session.name, "invite_delivery_queued", "invite", created.invite.id, {
+        actorId: session.sub,
+        actorRole: session.role,
         engagementId,
         notificationId: notification.id,
+        requestId: requestMeta.requestId,
+        requestIp: requestMeta.requestIp,
       });
       deliveryMessage = "Invite created. Email delivery is being processed in the background.";
+      if ("mode" in dispatchResult && dispatchResult.mode === "inline") {
+        deliveryMessage = "Invite created. Notification handling completed during this request.";
+      }
     }
 
     revalidatePath(`/app/engagements/${engagementId}`);
