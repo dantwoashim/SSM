@@ -21,6 +21,7 @@ export {
   getLatestWorkerHeartbeat,
   hasEngagementAccess,
   listCustomerRecipientsForEngagement,
+  listNotificationsForEngagement,
   listOpenInvitesForEngagement,
   listPortalDataForUser,
   listScenariosForRun,
