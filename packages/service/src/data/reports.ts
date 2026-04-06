@@ -1,4 +1,5 @@
 import {
+  buildPublicationAssessment,
   computeReadinessScore,
   formatExecutiveSummary,
   type ReportSnapshot,
@@ -48,9 +49,10 @@ function buildReportSnapshot(input: {
     return {
       id: row.scenarioId,
       title: row.title || definition?.title || row.scenarioId,
-      protocol: (definition?.protocol || row.protocol) as "saml" | "oidc" | "scim" | "ops",
+      protocol: (definition?.protocol || row.protocol) as "saml" | "scim" | "ops",
       outcome: row.outcome as "pending" | "passed" | "failed" | "skipped",
-      reviewerNotes: row.reviewerNotes || "",
+      customerSummary: row.customerVisibleSummary || row.reviewerNotes || "No customer-facing summary recorded.",
+      buyerSafeReportNote: row.buyerSafeReportNote || row.customerVisibleSummary || "No buyer-safe report note recorded.",
       evidenceCount: linkedAttachmentCount || row.evidence.length,
     };
   });
@@ -62,11 +64,17 @@ function buildReportSnapshot(input: {
     .map((row) => ({
       title: row.title,
       severity: row.severity,
-      summary: row.summary,
+      customerSummary: row.reportSummary || row.customerSummary || row.buyerSafeNote,
       remediation: row.remediation,
       buyerSafeNote: row.buyerSafeNote,
       evidenceCount: input.attachmentRows.filter((attachment) => attachment.findingId === row.id).length,
     }));
+
+  const passedScenarios = scenarios.filter((scenario) => scenario.outcome === "passed").length;
+  const failedScenarios = scenarios.filter((scenario) => scenario.outcome === "failed").length;
+  const skippedScenarios = scenarios.filter((scenario) => scenario.outcome === "skipped").length;
+  const pendingScenarios = scenarios.filter((scenario) => scenario.outcome === "pending").length;
+  const executedScenarios = passedScenarios + failedScenarios;
 
   const snapshot: ReportSnapshot = {
     engagementTitle: input.engagement.title,
@@ -83,14 +91,37 @@ function buildReportSnapshot(input: {
       scopeBoundaries:
         "Validation covers the scoped environment, declared scenarios, and evidence captured during the current review cycle.",
       readinessScore: 0,
+      totalScenarios: scenarios.length,
+      executedScenarios,
+      passedScenarios,
+      failedScenarios,
+      skippedScenarios,
+      pendingScenarios,
+      publication: {
+        canPublish: false,
+        requiresAcknowledgement: false,
+        blockingReasons: [],
+        warnings: [],
+      },
     },
     scenarios,
     findings: findingsView,
   };
 
+  snapshot.summary.publication = buildPublicationAssessment(snapshot);
   snapshot.summary.executiveSummary = formatExecutiveSummary(snapshot);
   snapshot.summary.readinessScore = computeReadinessScore(snapshot);
   return snapshot;
+}
+
+export function validateReportPublication(snapshot: ReportSnapshot, acknowledgedWarnings = false) {
+  if (!snapshot.summary.publication.canPublish) {
+    throw new Error(snapshot.summary.publication.blockingReasons[0] || "This report cannot be published yet.");
+  }
+
+  if (snapshot.summary.publication.requiresAcknowledgement && !acknowledgedWarnings) {
+    throw new Error("Publishing this report requires explicit acknowledgement of skipped scenarios or open findings.");
+  }
 }
 
 export async function generateReport(engagementId: string, actorName: string) {
@@ -137,13 +168,15 @@ export async function generateReport(engagementId: string, actorName: string) {
   return report;
 }
 
-export async function publishReport(reportId: string, actorName: string) {
+export async function publishReport(reportId: string, actorName: string, acknowledgedWarnings = false) {
   await runInTransaction(async (db) => {
     const [report] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
 
     if (!report) {
       throw new Error("Report not found.");
     }
+
+    validateReportPublication(report.reportJson, acknowledgedWarnings);
 
     const timestamp = now();
     await db
