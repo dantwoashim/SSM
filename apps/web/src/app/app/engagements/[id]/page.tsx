@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   addMessageAction,
   addManualScenarioAction,
+  createInviteAndRedirectAction,
   generateReportAction,
   generateTestPlanAction,
   publishReportAction,
@@ -18,7 +19,6 @@ import {
 import { SubmitButton } from "@/components/submit-button";
 import { formatDate, titleCase } from "@/lib/format";
 import { getCurrentSession } from "@/lib/session";
-import { InviteForm } from "@/components/invite-form";
 
 type ScenarioReview = {
   id: string;
@@ -75,10 +75,13 @@ type JobRunView = {
 
 export default async function EngagementDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ inviteUrl?: string; inviteError?: string; inviteNotice?: string }>;
 }) {
   const { id } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const session = await getCurrentSession();
 
   if (!session) {
@@ -486,7 +489,34 @@ export default async function EngagementDetailPage({
       {founderView ? (
         <section className="detail-section">
           <h3>Customer access</h3>
-          <InviteForm engagementId={detail.engagement.id} />
+          <form action={createInviteAndRedirectAction} className="form-fields">
+            <input type="hidden" name="engagementId" value={detail.engagement.id} />
+            <div className="field-grid">
+              <div className="field">
+                <label htmlFor="invite-name">Name</label>
+                <input id="invite-name" name="name" required />
+              </div>
+              <div className="field">
+                <label htmlFor="invite-email">Email</label>
+                <input id="invite-email" name="email" type="email" required />
+              </div>
+            </div>
+            <SubmitButton className="button-secondary" pendingLabel="Creating invite...">
+              Create invite
+            </SubmitButton>
+          </form>
+          {resolvedSearchParams?.inviteError ? (
+            <p className="error-message">{resolvedSearchParams.inviteError}</p>
+          ) : null}
+          {resolvedSearchParams?.inviteNotice ? (
+            <p className="muted">{resolvedSearchParams.inviteNotice}</p>
+          ) : null}
+          {resolvedSearchParams?.inviteUrl ? (
+            <div className="mt-md">
+              <strong>Invite link</strong>
+              <p className="muted break-anywhere">{resolvedSearchParams.inviteUrl}</p>
+            </div>
+          ) : null}
           {openInvites.length > 0 ? (
             <>
               <h4 className="mt-lg">Pending invites</h4>
