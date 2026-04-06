@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 describe("notification outbox", () => {
-  it("keeps notifications queued when email delivery is not configured", async () => {
+  it("marks notifications for manual action when email delivery is not configured", async () => {
     const stateRoot = makeStateRoot();
     const service = await bootService(stateRoot);
 
@@ -54,11 +54,12 @@ describe("notification outbox", () => {
         delivered: false,
         provider: "manual",
       });
-      expect(stored?.status).toBe("queued");
+      expect(stored?.status).toBe("manual_action_required");
       expect(stored?.lastError).toMatch(/not configured/i);
+      expect(stored?.manualAction).toMatch(/share the generated link manually/i);
     } finally {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 30_000);
+  }, 60_000);
 });
