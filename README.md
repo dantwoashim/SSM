@@ -40,7 +40,8 @@ From the outside, the workflow is simple.
 4. Reviewers execute scenarios, attach evidence, and record outcomes.
 5. Failed scenarios become findings with remediation guidance.
 6. The application drafts an assurance report and exports a PDF.
-7. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
+7. Publication is gated when execution coverage is incomplete or still needs explicit acknowledgment.
+8. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
 
 That is the whole point of the product. It should be possible to go from "the buyer needs proof this week" to a defensible package without juggling spreadsheets, screenshots, and email threads.
 
@@ -75,6 +76,8 @@ It is built for the real operating constraints of an early product.
 In other words: this is not a toy landing page wrapped around a backlog. The useful part is already here.
 
 It is also opinionated in the right places. Customer contacts do not get internal notes. Evidence can be linked back to scenarios, findings, and reports. Background execution is optional, not required. The system can start cheap and get more formal later without turning into a rewrite.
+
+It is also stricter than a typical internal tool. Draft reports do not publish cleanly just because somebody clicked the button. Coverage, skipped work, and unresolved findings are surfaced directly in the report summary so the output stays honest when the work is partial.
 
 ## Running it locally
 
@@ -146,6 +149,7 @@ npm run typecheck
 npm run test
 npm run test:e2e
 npm run build
+npm run smoke:docker
 npm run worker
 ```
 
@@ -169,6 +173,8 @@ When uptime matters more than thrift, the codebase already supports the usual up
 - transactional email delivery
 
 No redesign is required to make that move. The workflow stays the same.
+
+For the hosted path, the repository now includes two separate credibility checks: `npm run verify` for the source tree and `npm run smoke:docker` for the packaged container image.
 
 ## What to look at if you are evaluating the implementation
 
