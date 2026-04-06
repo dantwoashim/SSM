@@ -5,6 +5,10 @@ type AssuranceJobPayload = {
   actorName: string;
 };
 
+type NotificationJobPayload = AssuranceJobPayload & {
+  notificationId: string;
+};
+
 export type DispatchableAssuranceJob =
   | {
       name: "test-plan.generate";
@@ -13,12 +17,22 @@ export type DispatchableAssuranceJob =
   | {
       name: "report.generate";
       data: AssuranceJobPayload;
+    }
+  | {
+      name: "notification.send";
+      data: NotificationJobPayload;
     };
 
 export type AssuranceJob =
   | {
       name: "test-plan.generate";
       data: AssuranceJobPayload & {
+        jobRunId: string;
+      };
+    }
+  | {
+      name: "notification.send";
+      data: NotificationJobPayload & {
         jobRunId: string;
       };
     }
