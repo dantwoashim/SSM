@@ -6,6 +6,7 @@ export * from "./helpers";
 export * from "./invites";
 export * from "./jobs";
 export * from "./leads";
+export * from "./notifications";
 export * from "./rate-limits";
 export * from "./reports";
 export * from "./access";
