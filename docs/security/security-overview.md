@@ -3,10 +3,12 @@
 ## Baseline controls
 
 - Invite-only portal with signed session cookies
-- Founder-seeded access until the invite flow is broadened
+- Founder-seeded access with customer invites for named engagements
 - Database-backed audit log for lead conversion, report publication, and artifact uploads
-- Local storage fallback with optional S3-compatible signed URLs
-- Documented retention, deletion, backup, and incident procedures
+- Local artifact storage for founder-operated mode, with S3-compatible object storage for hosted mode
+- Background notification outbox records instead of synchronous request-path delivery
+- Founder-operated backup steps for local mode, plus deployment and readiness checks for hosted mode
+- Request correlation through `x-request-id` response headers
 
 ## Data handling
 
@@ -16,6 +18,8 @@
 
 ## Current compliance position
 
-- Security-ready operations from day one
+- Practical security baseline for a service-led product
 - SOC 2 preparation deferred until initial revenue
 - No public claim of certification, attestation, or third-party audit
+
+Operational expectations are documented in [docs/operations.md](../operations.md).

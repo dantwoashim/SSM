@@ -8,7 +8,7 @@ Use local self-hosting with Cloudflare Tunnel:
 
 ## Hosted baseline
 
-- Web app deploys as a Node service running the standalone server produced by `next build`
+- Web app deploys as a Node service running the production Next server built by `next build`
 - Worker deploys as a separate long-running process
 - Postgres is mandatory in production
 - Redis is recommended if you want queued background work
@@ -19,6 +19,8 @@ Use local self-hosting with Cloudflare Tunnel:
 
 - `/api/healthz` for process-level liveness
 - `/api/readyz` for database and runtime readiness
+
+`/api/readyz` is the authoritative deploy gate. It fails when the database, required artifact storage, Redis, or the worker heartbeat is not healthy for the configured mode.
 
 ## Required environment variables
 
@@ -44,3 +46,24 @@ Use local self-hosting with Cloudflare Tunnel:
 ## Render blueprint
 
 Use [render.yaml](../render.yaml) as the starting deployment manifest for a web service, worker, Postgres database, and Redis instance.
+
+## Release verification
+
+Before a hosted deploy, run:
+
+```powershell
+npm run lint
+npm run typecheck
+npm run test
+npm run smoke:storage
+npm run build
+npm run smoke:start
+npm run test:e2e
+npm run check:hygiene
+```
+
+`npm run smoke:start` boots the production server with local-production safeguards and verifies `healthz`, `readyz`, and the login route before the deploy is treated as credible.
+
+## Backup and restore
+
+If you are using local state during pilot work, use the operational scripts documented in [docs/operations.md](operations.md) before and after any risky deploy or machine migration.

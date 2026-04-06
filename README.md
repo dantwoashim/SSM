@@ -185,6 +185,7 @@ If you want the short version first, read these:
 
 - [docs/deployment.md](docs/deployment.md)
 - [docs/deployment/cloudflare-tunnel-free.md](docs/deployment/cloudflare-tunnel-free.md)
+- [docs/operations.md](docs/operations.md)
 - [docs/security/security-overview.md](docs/security/security-overview.md)
 
 ## Current state
