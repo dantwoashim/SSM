@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { audit, createLead, enforceRateLimit } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
 import { queueNotification } from "@/lib/email";
-import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
+import { assertSameOriginRequest, getRequestMetadata } from "@/lib/request-context";
 import { parseLeadForm, validationMessage } from "@/lib/validation";
 import { rethrowIfRedirectError } from "@/lib/actions/redirect-errors";
 import { dispatchNotificationJob } from "@/lib/jobs";
+import { logError } from "@/lib/logger";
 
 export async function submitLeadAction(formData: FormData) {
   await assertSameOriginRequest();
@@ -17,10 +18,10 @@ export async function submitLeadAction(formData: FormData) {
     return;
   }
 
-  const ip = await getRequestIp();
+  const requestMeta = await getRequestMetadata();
   await enforceRateLimit({
     route: "lead-intake",
-    bucketKey: `lead:${ip}`,
+    bucketKey: `lead:${requestMeta.requestIp}`,
     limit: 5,
     windowMs: 60 * 60 * 1000,
   });
@@ -60,6 +61,8 @@ export async function submitLeadAction(formData: FormData) {
   });
   await audit("system", "lead_notification_queued", "lead", lead.id, {
     notificationId: notification.id,
+    requestId: requestMeta.requestId,
+    requestIp: requestMeta.requestIp,
   });
 
   return {
@@ -81,6 +84,19 @@ export async function submitLeadAndRedirectAction(formData: FormData) {
     redirect(`/intake?${params.toString()}`);
   } catch (error) {
     rethrowIfRedirectError(error);
+    const requestId = await getRequestIdSafe();
+    logError("lead.submit_failed", error, {
+      requestId,
+    });
     redirect(`/intake?error=${encodeURIComponent(validationMessage(error))}`);
+  }
+}
+
+async function getRequestIdSafe() {
+  try {
+    const meta = await getRequestMetadata();
+    return meta.requestId;
+  } catch {
+    return "unknown";
   }
 }
