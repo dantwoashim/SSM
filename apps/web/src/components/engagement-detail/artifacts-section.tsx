@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { uploadAttachmentAction } from "@/lib/actions/engagement-actions";
+import { useActionState } from "react";
+import { uploadAttachmentStateAction } from "@/lib/actions/engagement-actions";
 import { formatDate } from "@/lib/format";
 import { SubmitButton } from "@/components/submit-button";
 import type { AttachmentView, FindingView, ScenarioReview } from "./types";
@@ -19,10 +22,15 @@ export function ArtifactsSection({
   findingRows: FindingView[];
   reportRows: Array<{ id: string; version: number; status: string }>;
 }) {
+  const [uploadState, uploadAction] = useActionState(uploadAttachmentStateAction, {
+    error: "",
+    notice: "",
+  });
+
   return (
     <section className="detail-section">
       <h3>Evidence and uploads</h3>
-      <form action={uploadAttachmentAction} className="form-fields">
+      <form action={uploadAction} className="form-fields">
         <input type="hidden" name="engagementId" value={engagementId} />
         {founderView ? (
           <div className="field">
@@ -85,6 +93,8 @@ export function ArtifactsSection({
           Upload
         </SubmitButton>
       </form>
+      {uploadState.error ? <p className="error-message">{uploadState.error}</p> : null}
+      {!uploadState.error && uploadState.notice ? <p className="muted">{uploadState.notice}</p> : null}
       {attachmentRows.length === 0 ? (
         <div className="empty-state">No attachments yet.</div>
       ) : (
