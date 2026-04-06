@@ -89,6 +89,19 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 The seed step creates a founder account and sample engagement data so you can walk the system end to end without fabricating records by hand.
 
+## Five-minute tour
+
+If you want to understand the product quickly, do this:
+
+1. Run the seed step.
+2. Open the founder portal.
+3. Inspect the seeded engagement.
+4. Generate a test plan.
+5. Review a scenario, attach evidence, and draft the report.
+6. Open the customer access section and issue an invite.
+
+That path shows the product's center of gravity better than reading every route in the codebase. You will see the engagement model, the evidence model, the visibility boundaries, and the report output in a few minutes.
+
 ## Environment model
 
 The minimum local configuration lives in [apps/web/.env.example](apps/web/.env.example).
@@ -147,6 +160,16 @@ When uptime matters more than thrift, the codebase already supports the usual up
 - transactional email delivery
 
 No redesign is required to make that move. The workflow stays the same.
+
+## What to look at if you are evaluating the implementation
+
+If you care about the product mechanics, start here:
+
+- [packages/core/src/lib/scenarios.ts](packages/core/src/lib/scenarios.ts) for the scenario library
+- [packages/service/src/data/engagements.ts](packages/service/src/data/engagements.ts) for the core engagement workflow
+- [packages/service/src/data/reports.ts](packages/service/src/data/reports.ts) for report drafting and publication
+- [apps/web/src/app/app/engagements/[id]/page.tsx](apps/web/src/app/app/engagements/[id]/page.tsx) for the operator and customer-facing engagement experience
+- [tests/e2e/app.spec.ts](tests/e2e/app.spec.ts) for the browser coverage around the critical user journeys
 
 ## Documentation
 
