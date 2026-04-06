@@ -4,9 +4,11 @@ import type { AttachmentView, FindingView } from "./types";
 export function FindingsSection({
   findingRows,
   attachmentRows,
+  founderView,
 }: {
   findingRows: FindingView[];
   attachmentRows: AttachmentView[];
+  founderView: boolean;
 }) {
   return (
     <section className="detail-section">
@@ -27,7 +29,9 @@ export function FindingsSection({
                   {evidenceCount > 0 ? ` / ${evidenceCount} evidence` : ""}
                 </span>
               </div>
-              <p className="list-item-body">{finding.summary}</p>
+              <p className="list-item-body">
+                {founderView ? finding.summary : finding.customerSummary || finding.reportSummary || finding.summary}
+              </p>
               <p className="muted">{finding.remediation}</p>
             </div>
           );
