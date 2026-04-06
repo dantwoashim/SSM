@@ -7,6 +7,8 @@ coverage
 .env
 .env.local
 storage
+!apps/web/src/lib/storage/
+!apps/web/src/lib/storage/provider.ts
 *.log
 .runtime/
 output/
