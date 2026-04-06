@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { engagementMemberships, engagements, findings, invites, jobRuns, leads, reports, users } from "./schema";
 
@@ -49,13 +49,16 @@ export async function listPortalDataForUser(input: {
       .from(jobRuns)
       .orderBy(desc(jobRuns.updatedAt))
       .limit(10);
-    const activeJobRuns = await db
-      .select()
+    const [{ value: activeJobCount }] = await db
+      .select({ value: count() })
       .from(jobRuns)
       .where(or(eq(jobRuns.status, "queued"), eq(jobRuns.status, "running")));
-    const openFindingRows = await db.select().from(findings).where(eq(findings.status, "open"));
-    const publishedReportRows = await db
-      .select()
+    const [{ value: openFindingCount }] = await db
+      .select({ value: count() })
+      .from(findings)
+      .where(eq(findings.status, "open"));
+    const [{ value: publishedReportCount }] = await db
+      .select({ value: count() })
       .from(reports)
       .where(eq(reports.status, "published"));
 
@@ -64,9 +67,9 @@ export async function listPortalDataForUser(input: {
       engagements: engagementRows,
       openInvites: openInviteRows,
       recentJobRuns,
-      activeJobCount: activeJobRuns.length,
-      openFindingCount: openFindingRows.length,
-      publishedReportCount: publishedReportRows.length,
+      activeJobCount: Number(activeJobCount),
+      openFindingCount: Number(openFindingCount),
+      publishedReportCount: Number(publishedReportCount),
     };
   }
 
@@ -84,18 +87,18 @@ export async function listPortalDataForUser(input: {
           .select()
           .from(engagements)
           .where(inArray(engagements.id, engagementIds));
-  const openFindingRows =
+  const [{ value: openFindingCount }] =
     engagementIds.length === 0
-      ? []
+      ? [{ value: 0 }]
       : await db
-          .select()
+          .select({ value: count() })
           .from(findings)
           .where(and(inArray(findings.engagementId, engagementIds), eq(findings.status, "open")));
-  const publishedReportRows =
+  const [{ value: publishedReportCount }] =
     engagementIds.length === 0
-      ? []
+      ? [{ value: 0 }]
       : await db
-          .select()
+          .select({ value: count() })
           .from(reports)
           .where(and(inArray(reports.engagementId, engagementIds), eq(reports.status, "published")));
 
@@ -105,8 +108,8 @@ export async function listPortalDataForUser(input: {
     openInvites: [],
     recentJobRuns: [],
     activeJobCount: 0,
-    openFindingCount: openFindingRows.length,
-    publishedReportCount: publishedReportRows.length,
+    openFindingCount: Number(openFindingCount),
+    publishedReportCount: Number(publishedReportCount),
   };
 }
 
