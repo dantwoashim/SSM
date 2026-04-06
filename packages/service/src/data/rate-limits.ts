@@ -1,7 +1,10 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "./client";
+import { querySql } from "./client";
 import { makeId, now } from "./helpers";
-import { requestLimits } from "./schema";
+import { RateLimitExceededError } from "../errors";
+
+function sqlString(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
 
 export async function enforceRateLimit(input: {
   route: string;
@@ -9,51 +12,36 @@ export async function enforceRateLimit(input: {
   limit: number;
   windowMs: number;
 }) {
-  const db = await getDb();
-  const [existing] = await db
-    .select()
-    .from(requestLimits)
-    .where(eq(requestLimits.bucketKey, input.bucketKey))
-    .limit(1);
   const timestamp = now();
+  const windowCutoff = new Date(Date.now() - input.windowMs).toISOString();
+  const rows = await querySql<{ count: number }>(`
+    INSERT INTO request_limits (id, bucket_key, route, count, window_started_at, updated_at)
+    VALUES (
+      ${sqlString(makeId("limit"))},
+      ${sqlString(input.bucketKey)},
+      ${sqlString(input.route)},
+      1,
+      ${sqlString(timestamp)},
+      ${sqlString(timestamp)}
+    )
+    ON CONFLICT (bucket_key) DO UPDATE
+    SET
+      route = EXCLUDED.route,
+      count = CASE
+        WHEN request_limits.window_started_at <= ${sqlString(windowCutoff)} THEN 1
+        ELSE request_limits.count + 1
+      END,
+      window_started_at = CASE
+        WHEN request_limits.window_started_at <= ${sqlString(windowCutoff)} THEN EXCLUDED.window_started_at
+        ELSE request_limits.window_started_at
+      END,
+      updated_at = EXCLUDED.updated_at
+    WHERE request_limits.window_started_at <= ${sqlString(windowCutoff)}
+       OR request_limits.count < ${input.limit}
+    RETURNING count;
+  `);
 
-  if (!existing) {
-    await db.insert(requestLimits).values({
-      id: makeId("limit"),
-      bucketKey: input.bucketKey,
-      route: input.route,
-      count: 1,
-      windowStartedAt: timestamp,
-      updatedAt: timestamp,
-    });
-    return;
+  if (rows.length === 0) {
+    throw new RateLimitExceededError();
   }
-
-  const windowStarted = new Date(existing.windowStartedAt).getTime();
-  const expired = Number.isNaN(windowStarted) || Date.now() - windowStarted >= input.windowMs;
-
-  if (expired) {
-    await db
-      .update(requestLimits)
-      .set({
-        count: 1,
-        route: input.route,
-        windowStartedAt: timestamp,
-        updatedAt: timestamp,
-      })
-      .where(eq(requestLimits.id, existing.id));
-    return;
-  }
-
-  if (existing.count >= input.limit) {
-    throw new Error("Too many requests. Please wait and try again.");
-  }
-
-  await db
-    .update(requestLimits)
-    .set({
-      count: existing.count + 1,
-      updatedAt: timestamp,
-    })
-    .where(eq(requestLimits.id, existing.id));
 }
