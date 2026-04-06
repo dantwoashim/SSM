@@ -6,6 +6,8 @@ export type ScenarioReview = {
   executionMode: string;
   outcome: string;
   reviewerNotes: string | null;
+  customerVisibleSummary: string | null;
+  buyerSafeReportNote: string | null;
   evidence: string[];
   definition?: {
     title: string;
@@ -17,6 +19,8 @@ export type FindingView = {
   title: string;
   severity: string;
   summary: string;
+  customerSummary: string | null;
+  reportSummary: string | null;
   remediation: string;
   status: string;
   scenarioRunId: string | null;
