@@ -33,7 +33,7 @@ export function formatExecutiveSummary(snapshot: ReportSnapshot): string {
 
 export function toMarkdown(snapshot: ReportSnapshot): string {
   const findingLines = snapshot.findings
-    .sort((left, right) => severityOrder[left.severity] - severityOrder[right.severity])
+    .sort((left, right) => severityOrder[right.severity] - severityOrder[left.severity])
     .map(
       (finding) =>
         `- **${finding.title}** (${finding.severity}${finding.evidenceCount > 0 ? `, evidence: ${finding.evidenceCount}` : ""}): ${finding.summary}\n  - Remediation: ${finding.remediation}\n  - Buyer-safe note: ${finding.buyerSafeNote}`,
