@@ -8,6 +8,7 @@ import {
   parseLoginForm,
   parseManualScenarioForm,
   sanitizeAttachmentFileName,
+  validateAttachmentContent,
   validateAttachmentUpload,
 } from "./validation";
 
@@ -56,6 +57,18 @@ describe("validation helpers", () => {
         }),
       ),
     ).toThrow(ActionValidationError);
+  });
+
+  it("allows claim-access invite acceptance without a password", () => {
+    const parsed = parseAcceptInviteForm(
+      buildFormData({
+        token: "this-token-is-long-enough-to-validate",
+        mode: "claim-access",
+      }),
+    );
+
+    expect(parsed.mode).toBe("claim-access");
+    expect(parsed.password).toBeUndefined();
   });
 
   it("rejects a lead intake honeypot submission", () => {
@@ -144,5 +157,15 @@ describe("validation helpers", () => {
     });
 
     expect(() => validateAttachmentUpload(tooLarge)).toThrow(ActionValidationError);
+  });
+
+  it("rejects files whose bytes do not match the declared type", () => {
+    expect(() =>
+      validateAttachmentContent(
+        new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+        "application/pdf",
+        "evidence.pdf",
+      ),
+    ).toThrow(ActionValidationError);
   });
 });
