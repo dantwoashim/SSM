@@ -20,8 +20,68 @@ import {
   scenarioRuns,
   testRuns,
 } from "./schema";
+import { AttachmentLinkageError } from "../errors";
 
-export async function convertLeadToEngagement(leadId: string, ownerName: string) {
+const manualScenarioPrefix = "manual:";
+
+function slugifyManualScenarioTitle(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function buildManualScenarioId(protocol: string, title: string) {
+  return `${manualScenarioPrefix}${protocol}:${slugifyManualScenarioTitle(title) || "custom-check"}`;
+}
+
+function buildFindingKey(input: {
+  scenarioId: string;
+  protocol: string;
+  title: string | null;
+}) {
+  if (input.scenarioId.startsWith(manualScenarioPrefix)) {
+    return input.scenarioId;
+  }
+
+  const titleToken = slugifyManualScenarioTitle(input.title || input.scenarioId);
+  return `${input.protocol}:${input.scenarioId}:${titleToken}`;
+}
+
+function buildScenarioFindingTemplate(input: {
+  scenarioId: string;
+  title: string | null;
+  protocol: string;
+  reviewerNotes: string;
+}) {
+  const template = buildFindingTemplate(input.scenarioId);
+
+  if (template) {
+    return template;
+  }
+
+  const scenarioTitle = input.title || input.scenarioId;
+  return {
+    title: `${scenarioTitle} requires remediation`,
+    severity: "needs-clarification" as const,
+    customerImpact:
+      "A customer-specific identity scenario remains unresolved and should be reviewed before go-live.",
+    remediation:
+      "Reproduce the behavior, document the expected state, and assign a concrete remediation owner before rollout.",
+    buyerSafeNote:
+      input.reviewerNotes
+        ? `A manually scoped rollout scenario remains unresolved: ${input.reviewerNotes}`
+        : "A manually scoped rollout scenario remains unresolved and should be reviewed before launch.",
+  };
+}
+
+export async function convertLeadToEngagement(
+  leadId: string,
+  ownerName: string,
+  ownerUserId?: string | null,
+) {
   return runInTransaction(async (db) => {
     const [existingEngagement] = await db
       .select()
@@ -45,7 +105,7 @@ export async function convertLeadToEngagement(leadId: string, ownerName: string)
       leadId: lead.id,
       title: `${lead.intake.companyName} <> ${lead.intake.targetCustomer} Deal Rescue`,
       companyName: lead.intake.companyName,
-      ownerUserId: null,
+      ownerUserId: ownerUserId || null,
       status: "qualified" as const,
       productUrl: lead.intake.productUrl,
       targetCustomer: lead.intake.targetCustomer,
@@ -98,6 +158,7 @@ export async function createEngagement(input: {
   deadline?: string;
   claimedFeatures: ClaimedFeature[];
   actorName: string;
+  ownerUserId?: string | null;
 }) {
   const db = await getDb();
   const timestamp = now();
@@ -106,7 +167,7 @@ export async function createEngagement(input: {
     leadId: null,
     title: input.title,
     companyName: input.companyName,
-    ownerUserId: null,
+    ownerUserId: input.ownerUserId || null,
     status: "qualified" as const,
     productUrl: input.productUrl,
     targetCustomer: input.targetCustomer,
@@ -226,23 +287,55 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
       throw new Error("Engagement not found.");
     }
 
+    const priorRuns = await db
+      .select()
+      .from(testRuns)
+      .where(eq(testRuns.engagementId, engagementId))
+      .orderBy(desc(testRuns.createdAt));
+    const latestPriorRun = priorRuns[0] ?? null;
+    const latestPriorScenarioRows: Array<typeof scenarioRuns.$inferSelect> = latestPriorRun
+      ? await db.select().from(scenarioRuns).where(eq(scenarioRuns.testRunId, latestPriorRun.id))
+      : [];
     const selected = selectScenarios(engagement.targetIdp, engagement.claimedFeatures);
+    const carriedManualScenarios = latestPriorScenarioRows
+      .filter((scenario) => scenario.scenarioId.startsWith(manualScenarioPrefix))
+      .map((scenario) => ({
+        scenarioId: scenario.scenarioId,
+        title: scenario.title || scenario.scenarioId,
+        executionMode: scenario.executionMode as "manual" | "guided" | "automated",
+        protocol: scenario.protocol as "saml" | "oidc" | "scim" | "ops",
+        defaultSeverity: "needs-clarification" as const,
+        reviewerNotes: scenario.reviewerNotes || "",
+      }));
+    const combinedScenarios = [...selected];
+
+    for (const manualScenario of carriedManualScenarios) {
+      if (!combinedScenarios.some((scenario) => scenario.scenarioId === manualScenario.scenarioId)) {
+        combinedScenarios.push(manualScenario);
+      }
+    }
     const timestamp = now();
     const run = {
       id: makeId("run"),
       engagementId,
-      label: `Default ${engagement.targetIdp} readiness plan`,
-      status: selected.length === 0 ? "completed" : "running",
-      notes: "Generated from target IdP and claimed features.",
-      scenarioIds: selected.map((scenario) => scenario.scenarioId),
+      label:
+        priorRuns.length === 0
+          ? `Default ${engagement.targetIdp} readiness plan`
+          : `Retest ${priorRuns.length + 1} ${engagement.targetIdp} readiness plan`,
+      status: combinedScenarios.length === 0 ? "completed" : "running",
+      notes:
+        carriedManualScenarios.length > 0
+          ? "Generated from target IdP and claimed features, with carried forward manual scenarios from the previous cycle."
+          : "Generated from target IdP and claimed features.",
+      scenarioIds: combinedScenarios.map((scenario) => scenario.scenarioId),
       createdAt: timestamp,
-      completedAt: selected.length === 0 ? timestamp : null,
+      completedAt: combinedScenarios.length === 0 ? timestamp : null,
     };
 
     await db.insert(testRuns).values(run);
-    if (selected.length > 0) {
+    if (combinedScenarios.length > 0) {
       await db.insert(scenarioRuns).values(
-        selected.map((scenario) => ({
+        combinedScenarios.map((scenario) => ({
           id: makeId("scenario"),
           testRunId: run.id,
           scenarioId: scenario.scenarioId,
@@ -251,7 +344,7 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
           outcome: "pending",
           executionMode: scenario.executionMode,
           protocol: scenario.protocol,
-          reviewerNotes: "",
+          reviewerNotes: "reviewerNotes" in scenario ? scenario.reviewerNotes : "",
           evidence: [],
           updatedAt: timestamp,
         })),
@@ -261,13 +354,14 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
     await db
       .update(engagements)
       .set({
-        status: "in-progress",
+        status: priorRuns.length === 0 ? "in-progress" : "retest",
         updatedAt: timestamp,
       })
       .where(eq(engagements.id, engagementId));
     await audit(actorName, "generated_test_plan", "test_run", run.id, {
       engagementId,
-      scenarioCount: selected.length,
+      scenarioCount: combinedScenarios.length,
+      carriedManualScenarioCount: carriedManualScenarios.length,
     }, db);
     return run;
   });
@@ -281,69 +375,90 @@ export async function addManualScenario(input: {
   reviewerNotes: string;
   actorName: string;
 }) {
-  const db = await getDb();
-  const detail = await getEngagementDetail(input.engagementId);
+  return runInTransaction(async (db) => {
+    const [engagement] = await db
+      .select()
+      .from(engagements)
+      .where(eq(engagements.id, input.engagementId))
+      .limit(1);
 
-  if (!detail) {
-    throw new Error("Engagement not found.");
-  }
+    if (!engagement) {
+      throw new Error("Engagement not found.");
+    }
 
-  let run = detail.latestRun;
-  const timestamp = now();
+    const runs = await db
+      .select()
+      .from(testRuns)
+      .where(eq(testRuns.engagementId, input.engagementId))
+      .orderBy(desc(testRuns.createdAt))
+      .limit(1);
+    let run = runs[0] ?? null;
+    const timestamp = now();
 
-  if (!run) {
-    run = {
-      id: makeId("run"),
-      engagementId: input.engagementId,
-      label: `Manual ${detail.engagement.targetIdp} review plan`,
-      status: "running",
-      notes: "Created from founder-defined scenario coverage.",
-      scenarioIds: [],
-      createdAt: timestamp,
-      completedAt: null,
-    };
-    await db.insert(testRuns).values(run);
-  }
+    if (!run) {
+      run = {
+        id: makeId("run"),
+        engagementId: input.engagementId,
+        label: `Manual ${engagement.targetIdp} review plan`,
+        status: "running",
+        notes: "Created from founder-defined scenario coverage.",
+        scenarioIds: [],
+        createdAt: timestamp,
+        completedAt: null,
+      };
+      await db.insert(testRuns).values(run);
+    }
 
-  const scenarioId = `manual-${makeId("scenario")}`;
-  const scenarioRun = {
-    id: makeId("scenario"),
-    testRunId: run.id,
-    scenarioId,
-    title: input.title,
-    status: "queued",
-    outcome: "pending",
-    executionMode: input.executionMode,
-    protocol: input.protocol,
-    reviewerNotes: input.reviewerNotes,
-    evidence: [],
-    updatedAt: timestamp,
-  };
+    const scenarioId = buildManualScenarioId(input.protocol, input.title);
+    const [existingScenarioRun] = await db
+      .select()
+      .from(scenarioRuns)
+      .where(and(eq(scenarioRuns.testRunId, run.id), eq(scenarioRuns.scenarioId, scenarioId)))
+      .limit(1);
 
-  await db.insert(scenarioRuns).values(scenarioRun);
-  const mergedScenarioIds = Array.from(new Set([...(run.scenarioIds || []), scenarioId]));
-  await db
-    .update(testRuns)
-    .set({
-      scenarioIds: mergedScenarioIds,
-      status: "running",
-      completedAt: null,
-    })
-    .where(eq(testRuns.id, run.id));
-  await db
-    .update(engagements)
-    .set({
-      status: "in-progress",
+    if (existingScenarioRun) {
+      throw new Error("This manual scenario already exists in the current test cycle.");
+    }
+
+    const scenarioRun = {
+      id: makeId("scenario"),
+      testRunId: run.id,
+      scenarioId,
+      title: input.title,
+      status: "queued",
+      outcome: "pending",
+      executionMode: input.executionMode,
+      protocol: input.protocol,
+      reviewerNotes: input.reviewerNotes,
+      evidence: [],
       updatedAt: timestamp,
-    })
-    .where(eq(engagements.id, input.engagementId));
-  await audit(input.actorName, "added_manual_scenario", "scenario_run", scenarioRun.id, {
-    engagementId: input.engagementId,
-    protocol: input.protocol,
-    executionMode: input.executionMode,
-  });
+    };
 
-  return scenarioRun;
+    await db.insert(scenarioRuns).values(scenarioRun);
+    const mergedScenarioIds = Array.from(new Set([...(run.scenarioIds || []), scenarioId]));
+    await db
+      .update(testRuns)
+      .set({
+        scenarioIds: mergedScenarioIds,
+        status: "running",
+        completedAt: null,
+      })
+      .where(eq(testRuns.id, run.id));
+    await db
+      .update(engagements)
+      .set({
+        status: runs[0] ? "retest" : "in-progress",
+        updatedAt: timestamp,
+      })
+      .where(eq(engagements.id, input.engagementId));
+    await audit(input.actorName, "added_manual_scenario", "scenario_run", scenarioRun.id, {
+      engagementId: input.engagementId,
+      protocol: input.protocol,
+      executionMode: input.executionMode,
+    }, db);
+
+    return scenarioRun;
+  });
 }
 
 export async function updateScenarioRunResult(input: {
@@ -352,136 +467,152 @@ export async function updateScenarioRunResult(input: {
   reviewerNotes: string;
   actorName: string;
 }) {
-  const db = await getDb();
-  const [scenarioRun] = await db
-    .select()
-    .from(scenarioRuns)
-    .where(eq(scenarioRuns.id, input.scenarioRunId))
-    .limit(1);
+  return runInTransaction(async (db) => {
+    const [scenarioRun] = await db
+      .select()
+      .from(scenarioRuns)
+      .where(eq(scenarioRuns.id, input.scenarioRunId))
+      .limit(1);
 
-  if (!scenarioRun) {
-    throw new Error("Scenario run not found.");
-  }
+    if (!scenarioRun) {
+      throw new Error("Scenario run not found.");
+    }
 
-  const [testRun] = await db
-    .select()
-    .from(testRuns)
-    .where(eq(testRuns.id, scenarioRun.testRunId))
-    .limit(1);
+    const [testRun] = await db
+      .select()
+      .from(testRuns)
+      .where(eq(testRuns.id, scenarioRun.testRunId))
+      .limit(1);
 
-  if (!testRun) {
-    throw new Error("Test run not found.");
-  }
+    if (!testRun) {
+      throw new Error("Test run not found.");
+    }
 
-  const [engagement] = await db
-    .select()
-    .from(engagements)
-    .where(eq(engagements.id, testRun.engagementId))
-    .limit(1);
+    const [engagement] = await db
+      .select()
+      .from(engagements)
+      .where(eq(engagements.id, testRun.engagementId))
+      .limit(1);
 
-  if (!engagement) {
-    throw new Error("Engagement not found.");
-  }
+    if (!engagement) {
+      throw new Error("Engagement not found.");
+    }
 
-  const timestamp = now();
-  await db
-    .update(scenarioRuns)
-    .set({
-      outcome: input.outcome,
-      status: input.outcome === "pending" ? "queued" : "reviewed",
+    const timestamp = now();
+    await db
+      .update(scenarioRuns)
+      .set({
+        outcome: input.outcome,
+        status: input.outcome === "pending" ? "queued" : "reviewed",
+        reviewerNotes: input.reviewerNotes,
+        updatedAt: timestamp,
+      })
+      .where(eq(scenarioRuns.id, input.scenarioRunId));
+
+    const findingKey = buildFindingKey({
+      scenarioId: scenarioRun.scenarioId,
+      protocol: scenarioRun.protocol,
+      title: scenarioRun.title,
+    });
+    const template = buildScenarioFindingTemplate({
+      scenarioId: scenarioRun.scenarioId,
+      title: scenarioRun.title,
+      protocol: scenarioRun.protocol,
       reviewerNotes: input.reviewerNotes,
-      updatedAt: timestamp,
-    })
-    .where(eq(scenarioRuns.id, input.scenarioRunId));
+    });
+    const [existingFinding] = await db
+      .select()
+      .from(findings)
+      .where(and(eq(findings.engagementId, engagement.id), eq(findings.findingKey, findingKey)))
+      .limit(1);
 
-  const template = buildFindingTemplate(scenarioRun.scenarioId);
-  const [existingFinding] = await db
-    .select()
-    .from(findings)
-    .where(and(eq(findings.scenarioRunId, scenarioRun.id), eq(findings.testRunId, testRun.id)))
-    .limit(1);
-
-  if (input.outcome === "failed" && template) {
-    if (existingFinding) {
-      await db
-        .update(findings)
-        .set({
+    if (input.outcome === "failed") {
+      if (existingFinding) {
+        await db
+          .update(findings)
+          .set({
+            testRunId: testRun.id,
+            scenarioRunId: scenarioRun.id,
+            severity: template.severity,
+            customerImpact: template.customerImpact,
+            summary: input.reviewerNotes || template.customerImpact,
+            remediation: template.remediation,
+            buyerSafeNote: template.buyerSafeNote,
+            status: "open",
+            lastObservedInRunId: testRun.id,
+            resolvedAt: null,
+            updatedAt: timestamp,
+          })
+          .where(eq(findings.id, existingFinding.id));
+      } else {
+        await db.insert(findings).values({
+          id: makeId("finding"),
+          engagementId: engagement.id,
+          testRunId: testRun.id,
+          scenarioRunId: scenarioRun.id,
+          findingKey,
+          openedInRunId: testRun.id,
+          lastObservedInRunId: testRun.id,
+          title: template.title,
           severity: template.severity,
           customerImpact: template.customerImpact,
           summary: input.reviewerNotes || template.customerImpact,
+          rootCause: null,
           remediation: template.remediation,
+          ownerHint: "Engineering owner",
           buyerSafeNote: template.buyerSafeNote,
           status: "open",
+          resolvedAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
+    }
+
+    if (input.outcome === "passed" && existingFinding) {
+      await db
+        .update(findings)
+        .set({
+          testRunId: testRun.id,
+          scenarioRunId: scenarioRun.id,
+          status: "resolved",
+          lastObservedInRunId: testRun.id,
+          resolvedAt: timestamp,
           updatedAt: timestamp,
         })
         .where(eq(findings.id, existingFinding.id));
-    } else {
-      await db.insert(findings).values({
-        id: makeId("finding"),
-        engagementId: engagement.id,
-        testRunId: testRun.id,
-        scenarioRunId: scenarioRun.id,
-        title: template.title,
-        severity: template.severity,
-        customerImpact: template.customerImpact,
-        summary: input.reviewerNotes || template.customerImpact,
-        rootCause: null,
-        remediation: template.remediation,
-        ownerHint: "Engineering owner",
-        buyerSafeNote: template.buyerSafeNote,
-        status: "open",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
     }
-  }
 
-  if (input.outcome === "passed" && existingFinding) {
+    if (input.outcome === "pending" && existingFinding) {
+      await db
+        .update(findings)
+        .set({
+          testRunId: testRun.id,
+          scenarioRunId: scenarioRun.id,
+          status: "pending-review",
+          updatedAt: timestamp,
+        })
+        .where(eq(findings.id, existingFinding.id));
+    }
+
+    const updatedScenarioRuns: Array<typeof scenarioRuns.$inferSelect> = await db
+      .select()
+      .from(scenarioRuns)
+      .where(eq(scenarioRuns.testRunId, testRun.id));
+    const outstandingCount = updatedScenarioRuns.filter((row) => row.outcome === "pending").length;
     await db
-      .update(findings)
+      .update(testRuns)
       .set({
-        status: "resolved",
-        updatedAt: timestamp,
+        status: outstandingCount > 0 ? "running" : "completed",
+        completedAt: outstandingCount > 0 ? null : timestamp,
       })
-      .where(eq(findings.id, existingFinding.id));
-  }
+      .where(eq(testRuns.id, testRun.id));
 
-  if (input.outcome === "skipped" && existingFinding) {
-    await db
-      .update(findings)
-      .set({
-        status: "resolved",
-        updatedAt: timestamp,
-      })
-      .where(eq(findings.id, existingFinding.id));
-  }
-
-  if (input.outcome === "pending" && existingFinding) {
-    await db
-      .update(findings)
-      .set({
-        status: "pending-review",
-        updatedAt: timestamp,
-      })
-      .where(eq(findings.id, existingFinding.id));
-  }
-
-  const updatedScenarioRuns: Array<typeof scenarioRuns.$inferSelect> = await db
-    .select()
-    .from(scenarioRuns)
-    .where(eq(scenarioRuns.testRunId, testRun.id));
-  const outstandingCount = updatedScenarioRuns.filter((row) => row.outcome === "pending").length;
-  await db
-    .update(testRuns)
-    .set({
-      status: outstandingCount > 0 ? "running" : "completed",
-      completedAt: outstandingCount > 0 ? null : timestamp,
-    })
-    .where(eq(testRuns.id, testRun.id));
-
-  await audit(input.actorName, "updated_scenario_run", "scenario_run", scenarioRun.id, {
-    outcome: input.outcome,
-    engagementId: engagement.id,
+    await audit(input.actorName, "updated_scenario_run", "scenario_run", scenarioRun.id, {
+      outcome: input.outcome,
+      engagementId: engagement.id,
+      findingKey,
+    }, db);
   });
 }
 
@@ -519,51 +650,99 @@ export async function registerAttachment(input: {
   findingId?: string | null;
   reportId?: string | null;
 }) {
-  const db = await getDb();
-  const attachment = {
-    id: makeId("attachment"),
-    engagementId: input.engagementId,
-    scenarioRunId: input.scenarioRunId || null,
-    findingId: input.findingId || null,
-    reportId: input.reportId || null,
-    uploadedBy: input.uploadedBy,
-    visibility: input.visibility,
-    fileName: input.fileName,
-    storageKey: input.storageKey,
-    contentType: input.contentType,
-    size: input.size,
-    createdAt: now(),
-  };
-  await db.insert(attachments).values(attachment);
-  if (attachment.scenarioRunId) {
-    const [scenarioRun] = await db
-      .select()
-      .from(scenarioRuns)
-      .where(eq(scenarioRuns.id, attachment.scenarioRunId))
-      .limit(1);
+  return runInTransaction(async (db) => {
+    if (input.scenarioRunId) {
+      const [scenarioRun] = await db
+        .select({
+          id: scenarioRuns.id,
+          testRunId: scenarioRuns.testRunId,
+          engagementId: testRuns.engagementId,
+          evidence: scenarioRuns.evidence,
+        })
+        .from(scenarioRuns)
+        .innerJoin(testRuns, eq(testRuns.id, scenarioRuns.testRunId))
+        .where(eq(scenarioRuns.id, input.scenarioRunId))
+        .limit(1);
 
-    if (scenarioRun) {
-      const evidence = Array.isArray(scenarioRun.evidence) ? scenarioRun.evidence : [];
-      if (!evidence.includes(attachment.id)) {
-        await db
-          .update(scenarioRuns)
-          .set({
-            evidence: [...evidence, attachment.id],
-            updatedAt: now(),
-          })
-          .where(eq(scenarioRuns.id, attachment.scenarioRunId));
+      if (!scenarioRun || scenarioRun.engagementId !== input.engagementId) {
+        throw new AttachmentLinkageError("Linked scenario does not belong to this engagement.");
       }
     }
-  }
-  await audit(input.uploadedBy, "uploaded_attachment", "attachment", attachment.id, {
-    engagementId: input.engagementId,
-    fileName: input.fileName,
-    visibility: input.visibility,
-    scenarioRunId: input.scenarioRunId || null,
-    findingId: input.findingId || null,
-    reportId: input.reportId || null,
+
+    if (input.findingId) {
+      const [finding] = await db
+        .select()
+        .from(findings)
+        .where(eq(findings.id, input.findingId))
+        .limit(1);
+
+      if (!finding || finding.engagementId !== input.engagementId) {
+        throw new AttachmentLinkageError("Linked finding does not belong to this engagement.");
+      }
+
+      if (input.scenarioRunId && finding.scenarioRunId && finding.scenarioRunId !== input.scenarioRunId) {
+        throw new AttachmentLinkageError("Linked finding does not match the selected scenario.");
+      }
+    }
+
+    if (input.reportId) {
+      const [report] = await db
+        .select()
+        .from(reports)
+        .where(eq(reports.id, input.reportId))
+        .limit(1);
+
+      if (!report || report.engagementId !== input.engagementId) {
+        throw new AttachmentLinkageError("Linked report does not belong to this engagement.");
+      }
+    }
+
+    const attachment = {
+      id: makeId("attachment"),
+      engagementId: input.engagementId,
+      scenarioRunId: input.scenarioRunId || null,
+      findingId: input.findingId || null,
+      reportId: input.reportId || null,
+      uploadedBy: input.uploadedBy,
+      visibility: input.visibility,
+      fileName: input.fileName,
+      storageKey: input.storageKey,
+      contentType: input.contentType,
+      size: input.size,
+      createdAt: now(),
+    };
+    await db.insert(attachments).values(attachment);
+
+    if (attachment.scenarioRunId) {
+      const [scenarioRun] = await db
+        .select()
+        .from(scenarioRuns)
+        .where(eq(scenarioRuns.id, attachment.scenarioRunId))
+        .limit(1);
+
+      if (scenarioRun) {
+        const evidence = Array.isArray(scenarioRun.evidence) ? scenarioRun.evidence : [];
+        if (!evidence.includes(attachment.id)) {
+          await db
+            .update(scenarioRuns)
+            .set({
+              evidence: [...evidence, attachment.id],
+              updatedAt: now(),
+            })
+            .where(eq(scenarioRuns.id, attachment.scenarioRunId));
+        }
+      }
+    }
+    await audit(input.uploadedBy, "uploaded_attachment", "attachment", attachment.id, {
+      engagementId: input.engagementId,
+      fileName: input.fileName,
+      visibility: input.visibility,
+      scenarioRunId: input.scenarioRunId || null,
+      findingId: input.findingId || null,
+      reportId: input.reportId || null,
+    }, db);
+    return attachment;
   });
-  return attachment;
 }
 
 export async function listScenariosForRun(runId: string) {
