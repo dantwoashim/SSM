@@ -18,8 +18,7 @@ import {
   updateScenarioRunResult,
 } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
-import { assertSameOriginRequest } from "@/lib/request-context";
-import { setEngagementFlashCookie } from "@/lib/engagement-flash";
+import { assertSameOriginRequest, getRequestMetadata } from "@/lib/request-context";
 import { storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
@@ -204,6 +203,24 @@ export async function uploadAttachmentAction(formData: FormData) {
   revalidatePath(`/app/engagements/${engagementId}`);
 }
 
+export async function uploadAttachmentStateAction(
+  _previousState: { error: string; notice: string } | undefined,
+  formData: FormData,
+) {
+  try {
+    await uploadAttachmentAction(formData);
+    return {
+      error: "",
+      notice: "Artifact uploaded successfully.",
+    };
+  } catch (error) {
+    return {
+      error: validationMessage(error),
+      notice: "",
+    };
+  }
+}
+
 export async function generateReportAction(formData: FormData) {
   const session = await requireFounder();
   const engagementId = parseJobActionForm(formData);
@@ -307,8 +324,10 @@ export async function createInviteAction(
       deliveryMessage,
     };
   } catch (error) {
+    const requestId = await getRequestIdSafe();
     logError("invite.create_failed", error, {
       engagementId: formData.get("engagementId")?.toString() || "",
+      requestId,
     });
     return {
       inviteUrl: "",
@@ -318,31 +337,11 @@ export async function createInviteAction(
   }
 }
 
-export async function createInviteAndRedirectAction(formData: FormData) {
-  const engagementId = formData.get("engagementId")?.toString() || "";
-
+async function getRequestIdSafe() {
   try {
-    const result = await createInviteAction(undefined, formData);
-    if (result.error) {
-      await setEngagementFlashCookie({
-        engagementId,
-        error: result.error,
-      });
-      redirect(`/app/engagements/${engagementId}`);
-    }
-
-    await setEngagementFlashCookie({
-      engagementId,
-      inviteUrl: result.inviteUrl,
-      notice: result.deliveryMessage,
-    });
-    redirect(`/app/engagements/${engagementId}`);
-  } catch (error) {
-    rethrowIfRedirectError(error);
-    await setEngagementFlashCookie({
-      engagementId,
-      error: validationMessage(error),
-    });
-    redirect(`/app/engagements/${engagementId}`);
+    const meta = await getRequestMetadata();
+    return meta.requestId;
+  } catch {
+    return "unknown";
   }
 }
