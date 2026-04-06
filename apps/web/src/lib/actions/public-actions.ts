@@ -7,6 +7,7 @@ import { sendLeadNotificationEmail } from "@/lib/email";
 import { logError } from "@/lib/logger";
 import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
 import { parseLeadForm, validationMessage } from "@/lib/validation";
+import { rethrowIfRedirectError } from "@/lib/actions/redirect-errors";
 
 export async function submitLeadAction(formData: FormData) {
   await assertSameOriginRequest();
@@ -80,6 +81,7 @@ export async function submitLeadAndRedirectAction(formData: FormData) {
 
     redirect(`/intake?${params.toString()}`);
   } catch (error) {
+    rethrowIfRedirectError(error);
     redirect(`/intake?error=${encodeURIComponent(validationMessage(error))}`);
   }
 }
