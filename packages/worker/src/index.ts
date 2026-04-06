@@ -4,11 +4,10 @@ import {
   selectScenarios,
   type AssuranceJob,
 } from "@assurance/core";
+import { executeQueuedJob, recordWorkerHeartbeat } from "@assurance/service";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 
-const webAppUrl = process.env.WEB_APP_URL || process.env.APP_URL || "";
-const jobExecutorToken = process.env.JOB_EXECUTOR_TOKEN || "";
 const workerName = process.env.WORKER_NAME || `assurance-worker-${process.pid}`;
 
 function logEvent(level: "info" | "warn" | "error", event: string, data: Record<string, unknown> = {}) {
@@ -39,59 +38,13 @@ function logError(event: string, error: unknown, data: Record<string, unknown> =
   });
 }
 
-async function executeJob(job: AssuranceJob) {
-  if (!webAppUrl) {
-    throw new Error("WEB_APP_URL or APP_URL must be configured for worker execution.");
-  }
-
-  if (!jobExecutorToken) {
-    throw new Error("JOB_EXECUTOR_TOKEN must be configured for worker execution.");
-  }
-
-  const response = await fetch(`${webAppUrl.replace(/\/$/, "")}/api/internal/jobs/execute`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-assurance-queue": assuranceQueueName,
-      "x-job-executor-token": jobExecutorToken,
-    },
-    body: JSON.stringify(job),
-  });
-
-  const payload = (await response.json().catch(() => null)) as
-    | { ok?: boolean; error?: string; result?: Record<string, unknown> }
-    | null;
-
-  if (!response.ok || !payload?.ok) {
-    throw new Error(payload?.error || `Worker execution failed with status ${response.status}.`);
-  }
-
-  return payload.result ?? {};
-}
-
 async function sendHeartbeat(status: "starting" | "running" | "stopped", metadata: Record<string, unknown> = {}) {
-  if (!webAppUrl || !jobExecutorToken) {
-    return;
-  }
-
-  const response = await fetch(`${webAppUrl.replace(/\/$/, "")}/api/internal/worker/heartbeat`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-job-executor-token": jobExecutorToken,
-    },
-    body: JSON.stringify({
-      workerName,
-      status,
-      queueName: assuranceQueueName,
-      metadata,
-    }),
+  await recordWorkerHeartbeat({
+    workerName,
+    status,
+    queueName: assuranceQueueName,
+    metadata,
   });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Heartbeat failed with status ${response.status}: ${body}`);
-  }
 }
 
 async function main() {
@@ -118,19 +71,11 @@ async function main() {
     return;
   }
 
-  if (!webAppUrl) {
-    throw new Error("WEB_APP_URL or APP_URL must be configured for worker execution.");
-  }
-
-  if (!jobExecutorToken) {
-    throw new Error("JOB_EXECUTOR_TOKEN must be configured for worker execution.");
-  }
-
   const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
-  await sendHeartbeat("starting", { webAppUrl, pid: process.pid });
+  await sendHeartbeat("starting", { pid: process.pid });
   const worker = new Worker<AssuranceJob["data"]>(
     assuranceQueueName,
-    async (job) => executeJob(job as AssuranceJob),
+    async (job) => executeQueuedJob(job as AssuranceJob),
     { connection: connection as any },
   );
   const heartbeatInterval = setInterval(() => {
