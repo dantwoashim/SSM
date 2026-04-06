@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/data/client";
-import { getLatestWorkerHeartbeat } from "@/lib/data";
-import { env, isLocalProdMode, isProductionLike } from "@/lib/env";
+import { getDb, getLatestWorkerHeartbeat } from "@assurance/service";
+import { env } from "@assurance/service/env";
 import { emailDeliveryConfigured } from "@/lib/email";
-import { logError } from "@/lib/logger";
+import { logError } from "@assurance/service/logger";
 import { pingRedis } from "@/lib/redis";
 import { checkArtifactStorageReadiness } from "@/lib/storage/provider";
 
@@ -14,7 +13,6 @@ export async function GET() {
     await getDb();
     const redis = env.redisUrl ? await pingRedis() : false;
     const storageConfigured = !!(env.s3.endpoint && env.s3.bucket);
-    const jobExecutorConfigured = !!env.jobExecutorToken || !env.redisUrl;
     const storageReady = await checkArtifactStorageReadiness().catch(() => false);
     const queueMode = env.redisUrl ? "worker" : "inline";
     const latestWorkerHeartbeat = env.redisUrl ? await getLatestWorkerHeartbeat() : null;
@@ -24,7 +22,7 @@ export async function GET() {
         && latestWorkerHeartbeat.status === "running"
         && Date.now() - new Date(latestWorkerHeartbeat.lastSeenAt).getTime() < 90_000
       );
-    const ready = (!env.redisUrl || redis) && jobExecutorConfigured && storageReady && workerHealthy;
+    const ready = (!env.redisUrl || redis) && storageReady && workerHealthy;
 
     return NextResponse.json(
       {
@@ -32,7 +30,6 @@ export async function GET() {
         database: true,
         redisConfigured: !!env.redisUrl,
         redis,
-        jobExecutorConfigured,
         queueMode,
         storageConfigured,
         storageReady,
