@@ -45,6 +45,7 @@ export async function submitLeadAction(formData: FormData) {
   assertAppUrlConfigured();
   const notification = await queueNotification({
     actorName: "system",
+    idempotencyKey: `lead:${lead.id}`,
     payload: {
       type: "lead",
       to: env.notificationEmail || env.founderEmail,
@@ -55,18 +56,22 @@ export async function submitLeadAction(formData: FormData) {
       leadUrl: `${env.appUrl}/app`,
     },
   });
-  await dispatchNotificationJob({
+  const dispatchResult = await dispatchNotificationJob({
     actorName: "system",
     notificationId: notification.id,
   });
   await audit("system", "lead_notification_queued", "lead", lead.id, {
+    actorRole: "system",
     notificationId: notification.id,
     requestId: requestMeta.requestId,
     requestIp: requestMeta.requestIp,
   });
 
   return {
-    deliveryMessage: "Intake saved. Notification delivery is being processed in the background.",
+    deliveryMessage:
+      dispatchResult.mode === "queue"
+        ? "Intake saved. Notification delivery has been queued."
+        : "Intake saved. Notification handling completed during this request.",
   };
 }
 
