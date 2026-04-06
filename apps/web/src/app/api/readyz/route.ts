@@ -12,7 +12,12 @@ export async function GET() {
   try {
     await getDb();
     const redis = env.redisUrl ? await pingRedis() : false;
-    const storageConfigured = !!(env.s3.endpoint && env.s3.bucket);
+    const storageMode = env.s3.endpoint && env.s3.bucket
+      ? "s3"
+      : process.env.NODE_ENV === "production" && env.allowLocalProd !== "1"
+        ? "unconfigured"
+        : "local";
+    const storageConfigured = storageMode !== "unconfigured";
     const storageReady = await checkArtifactStorageReadiness().catch(() => false);
     const queueMode = env.redisUrl ? "worker" : "inline";
     const latestWorkerHeartbeat = env.redisUrl ? await getLatestWorkerHeartbeat() : null;
@@ -31,6 +36,7 @@ export async function GET() {
         redisConfigured: !!env.redisUrl,
         redis,
         queueMode,
+        storageMode,
         storageConfigured,
         storageReady,
         workerHealthy,
