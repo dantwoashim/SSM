@@ -19,11 +19,13 @@ import {
 } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
 import { assertSameOriginRequest } from "@/lib/request-context";
+import { setEngagementFlashCookie } from "@/lib/engagement-flash";
 import { storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
 import { logError } from "@/lib/logger";
-import { sendInviteEmail, sendReportPublishedEmail } from "@/lib/email";
+import { queueNotification } from "@/lib/email";
+import { dispatchNotificationJob } from "@/lib/jobs";
 import {
   parseAttachmentLinkage,
   parseCreateEngagementForm,
@@ -35,6 +37,7 @@ import {
   parseScenarioReviewForm,
   parseVisibility,
   sanitizeAttachmentFileName,
+  validateAttachmentContent,
   validationMessage,
   validateAttachmentUpload,
 } from "@/lib/validation";
@@ -79,7 +82,7 @@ async function requireEngagementAccess(engagementId: string) {
 export async function convertLeadAction(formData: FormData) {
   const session = await requireFounder();
   const leadId = parseJobActionForm(formData, "leadId");
-  await convertLeadToEngagement(leadId, session.name);
+  await convertLeadToEngagement(leadId, session.name, session.sub);
   revalidatePath("/app");
 }
 
@@ -95,6 +98,7 @@ export async function createEngagementAction(formData: FormData) {
     deadline: parsed.deadline,
     claimedFeatures: parsed.claimedFeatures,
     actorName: session.name,
+    ownerUserId: session.sub,
   });
   revalidatePath("/app");
   revalidatePath(`/app/engagements/${engagement.id}`);
@@ -181,6 +185,7 @@ export async function uploadAttachmentAction(formData: FormData) {
   validateAttachmentUpload(file);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+  validateAttachmentContent(bytes, file.type || "application/octet-stream", file.name);
   const safeFileName = sanitizeAttachmentFileName(file.name);
   const storageKey = `${engagementId}/${crypto.randomUUID()}-${safeFileName}`;
   await storeArtifact(storageKey, safeFileName, bytes, file.type || "application/octet-stream");
@@ -225,30 +230,26 @@ export async function publishReportAction(formData: FormData) {
     const recipients = await listCustomerRecipientsForEngagement(engagementId);
 
     for (const recipient of recipients) {
-      const delivery = await sendReportPublishedEmail({
-        to: recipient.email,
-        recipientName: recipient.name,
-        engagementTitle: detail.engagement.title,
-        portalUrl,
-      }).catch((error) => {
-        logError("report.notification_failed", error, {
-          engagementId,
-          reportId,
-          recipientEmail: recipient.email,
-        });
-        return {
-          delivered: false,
-          provider: "manual" as const,
-          message: "Report published, but notification email failed for this recipient.",
-          providerMessageId: null,
-        };
+      const notification = await queueNotification({
+        engagementId,
+        actorName: session.name,
+        payload: {
+          type: "report-published",
+          to: recipient.email,
+          recipientName: recipient.name,
+          engagementTitle: detail.engagement.title,
+          portalUrl,
+        },
       });
-      await audit(session.name, "report_notification_processed", "report", reportId, {
+      await dispatchNotificationJob({
+        engagementId,
+        actorName: session.name,
+        notificationId: notification.id,
+      });
+      await audit(session.name, "report_notification_queued", "report", reportId, {
         engagementId,
         recipientEmail: recipient.email,
-        delivered: delivery.delivered,
-        provider: delivery.provider,
-        providerMessageId: delivery.providerMessageId,
+        notificationId: notification.id,
       });
     }
   }
@@ -272,45 +273,43 @@ export async function createInviteAction(
       createdBy: session.name,
     });
     const detail = await getEngagementDetail(engagementId);
-    const delivery = detail
-      ? await sendInviteEmail({
+    let deliveryMessage = "Invite created. Share the invite link below if the recipient needs it immediately.";
+
+    if (detail) {
+      const notification = await queueNotification({
+        engagementId,
+        actorName: session.name,
+        payload: {
+          type: "invite",
           to: created.invite.email,
           inviteeName: created.invite.name,
           companyName: detail.engagement.companyName,
           engagementTitle: detail.engagement.title,
           inviteUrl: created.inviteUrl,
-        }).catch((error) => {
-          logError("invite.delivery_failed", error, {
-            engagementId,
-            inviteId: created.invite.id,
-            recipientEmail: created.invite.email,
-          });
-          return {
-            delivered: false,
-            provider: "manual" as const,
-            message: "Invite was created, but email delivery failed. Share the invite link manually.",
-            providerMessageId: null,
-          };
-        })
-      : {
-          delivered: false,
-          provider: "manual" as const,
-          message: "Invite created. Email delivery skipped because the engagement could not be loaded.",
-          providerMessageId: null,
-        };
-    await audit(session.name, "invite_delivery_processed", "invite", created.invite.id, {
-      engagementId,
-      delivered: delivery.delivered,
-      provider: delivery.provider,
-      providerMessageId: delivery.providerMessageId,
-    });
+        },
+      });
+      await dispatchNotificationJob({
+        engagementId,
+        actorName: session.name,
+        notificationId: notification.id,
+      });
+      await audit(session.name, "invite_delivery_queued", "invite", created.invite.id, {
+        engagementId,
+        notificationId: notification.id,
+      });
+      deliveryMessage = "Invite created. Email delivery is being processed in the background.";
+    }
+
     revalidatePath(`/app/engagements/${engagementId}`);
     return {
       inviteUrl: created.inviteUrl,
       error: "",
-      deliveryMessage: delivery.message,
+      deliveryMessage,
     };
   } catch (error) {
+    logError("invite.create_failed", error, {
+      engagementId: formData.get("engagementId")?.toString() || "",
+    });
     return {
       inviteUrl: "",
       error: validationMessage(error),
@@ -324,26 +323,26 @@ export async function createInviteAndRedirectAction(formData: FormData) {
 
   try {
     const result = await createInviteAction(undefined, formData);
-    const params = new URLSearchParams();
-
-    if (result.inviteUrl) {
-      params.set("inviteUrl", result.inviteUrl);
+    if (result.error) {
+      await setEngagementFlashCookie({
+        engagementId,
+        error: result.error,
+      });
+      redirect(`/app/engagements/${engagementId}`);
     }
 
-    if (result.deliveryMessage) {
-      params.set("inviteNotice", result.deliveryMessage);
-    }
-
-    redirect(
-      params.size > 0
-        ? `/app/engagements/${engagementId}?${params.toString()}`
-        : `/app/engagements/${engagementId}`,
-    );
+    await setEngagementFlashCookie({
+      engagementId,
+      inviteUrl: result.inviteUrl,
+      notice: result.deliveryMessage,
+    });
+    redirect(`/app/engagements/${engagementId}`);
   } catch (error) {
     rethrowIfRedirectError(error);
-    const params = new URLSearchParams({
-      inviteError: validationMessage(error),
+    await setEngagementFlashCookie({
+      engagementId,
+      error: validationMessage(error),
     });
-    redirect(`/app/engagements/${engagementId}?${params.toString()}`);
+    redirect(`/app/engagements/${engagementId}`);
   }
 }
