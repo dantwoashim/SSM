@@ -1,5 +1,5 @@
-import { eq } from "drizzle-orm";
-import { getDb } from "./client";
+import { and, eq } from "drizzle-orm";
+import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import { notificationOutbox } from "./schema";
@@ -195,15 +195,32 @@ export async function queueNotification(input: {
   engagementId?: string | null;
   actorName: string;
   payload: NotificationPayload;
+  idempotencyKey?: string | null;
 }) {
   const db = await getDb();
   const timestamp = now();
+  if (input.idempotencyKey) {
+    const [existing] = await db
+      .select()
+      .from(notificationOutbox)
+      .where(eq(notificationOutbox.idempotencyKey, input.idempotencyKey))
+      .limit(1);
+
+    if (existing) {
+      return existing;
+    }
+  }
+
   const notification = {
     id: makeId("notify"),
     engagementId: input.engagementId || null,
     kind: input.payload.type,
     payload: input.payload,
     status: "queued",
+    attemptCount: 0,
+    reservedAt: null,
+    idempotencyKey: input.idempotencyKey || null,
+    manualAction: null,
     lastError: null,
     provider: null,
     providerMessageId: null,
@@ -232,7 +249,6 @@ export async function getNotificationById(notificationId: string) {
 }
 
 export async function sendQueuedNotification(notificationId: string) {
-  const db = await getDb();
   const notification = await getNotificationById(notificationId);
 
   if (!notification) {
@@ -248,44 +264,83 @@ export async function sendQueuedNotification(notificationId: string) {
     } as EmailDeliveryResult;
   }
 
-  await db
-    .update(notificationOutbox)
-    .set({
-      status: "sending",
-      lastError: null,
-      updatedAt: now(),
-    })
-    .where(eq(notificationOutbox.id, notification.id));
+  if (notification.status === "manual_action_required") {
+    return {
+      delivered: false,
+      provider: "manual",
+      message: notification.manualAction || notification.lastError || "Manual delivery is required.",
+      providerMessageId: notification.providerMessageId,
+    };
+  }
 
-  try {
-    const delivery = await deliverEmail(buildEmail(notification.payload as NotificationPayload));
-    const timestamp = now();
+  return runInTransaction(async (db) => {
+    const [current] = await db
+      .select()
+      .from(notificationOutbox)
+      .where(eq(notificationOutbox.id, notificationId))
+      .limit(1);
+
+    if (!current) {
+      throw new Error("Notification not found.");
+    }
+
     await db
       .update(notificationOutbox)
       .set({
-        status: delivery.delivered ? "sent" : "queued",
-        lastError: delivery.delivered ? null : delivery.message,
-        provider: delivery.provider,
-        providerMessageId: delivery.providerMessageId,
-        updatedAt: timestamp,
-        deliveredAt: delivery.delivered ? timestamp : null,
-      })
-      .where(eq(notificationOutbox.id, notification.id));
-
-    return delivery;
-  } catch (error) {
-    await db
-      .update(notificationOutbox)
-      .set({
-        status: "failed",
-        lastError: error instanceof Error ? error.message : "Notification delivery failed.",
+        status: "sending",
+        attemptCount: (current.attemptCount || 0) + 1,
+        reservedAt: now(),
+        manualAction: null,
+        lastError: null,
         updatedAt: now(),
       })
-      .where(eq(notificationOutbox.id, notification.id));
-    throw error;
-  }
+      .where(and(eq(notificationOutbox.id, notification.id), eq(notificationOutbox.status, current.status)));
+
+    try {
+      const delivery = await deliverEmail(buildEmail(current.payload as NotificationPayload));
+      const timestamp = now();
+
+      await db
+        .update(notificationOutbox)
+        .set({
+          status: delivery.delivered ? "sent" : "manual_action_required",
+          manualAction: delivery.delivered ? null : delivery.message,
+          lastError: delivery.delivered ? null : delivery.message,
+          provider: delivery.provider,
+          providerMessageId: delivery.providerMessageId,
+          updatedAt: timestamp,
+          reservedAt: null,
+          deliveredAt: delivery.delivered ? timestamp : null,
+        })
+        .where(eq(notificationOutbox.id, notification.id));
+
+      return delivery;
+    } catch (error) {
+      const nextAttemptCount = (current.attemptCount || 0) + 1;
+      const terminal = nextAttemptCount >= 3;
+      await db
+        .update(notificationOutbox)
+        .set({
+          status: terminal ? "failed_terminal" : "queued",
+          lastError: error instanceof Error ? error.message : "Notification delivery failed.",
+          manualAction: terminal ? "Delivery failed repeatedly. Review the provider response and send this notification manually." : null,
+          updatedAt: now(),
+          reservedAt: null,
+        })
+        .where(eq(notificationOutbox.id, notification.id));
+      throw error;
+    }
+  });
 }
 
 export function emailDeliveryConfigured() {
   return hasEmailDeliveryConfig();
+}
+
+export async function listNotificationsForEngagement(engagementId: string) {
+  const db = await getDb();
+  return db
+    .select()
+    .from(notificationOutbox)
+    .where(eq(notificationOutbox.engagementId, engagementId));
 }
