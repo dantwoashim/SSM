@@ -5,7 +5,7 @@ import { makeId, now } from "./helpers";
 import { jobRuns } from "./schema";
 
 export async function createJobRun(input: {
-  engagementId: string;
+  engagementId?: string | null;
   name: string;
   actorName: string;
   payload: Record<string, unknown>;
@@ -14,7 +14,7 @@ export async function createJobRun(input: {
   const timestamp = now();
   const jobRun = {
     id: makeId("job"),
-    engagementId: input.engagementId,
+    engagementId: input.engagementId || null,
     name: input.name,
     status: "queued",
     queueId: null,
