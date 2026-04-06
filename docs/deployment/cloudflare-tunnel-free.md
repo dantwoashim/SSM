@@ -108,6 +108,8 @@ This archives:
 
 Because this mode uses inline execution instead of a queue-backed worker, invite delivery and report notifications may complete during the same request. The portal reflects that directly rather than pretending the work always happens in the background.
 
+If you are showing the product to prospects, use a real hostname behind a named tunnel. Quick Tunnel URLs are fine for private testing and bad for anything customer-facing.
+
 ## Practical hardening
 
 - Use a dedicated machine if possible
