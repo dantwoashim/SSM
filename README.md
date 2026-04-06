@@ -115,6 +115,8 @@ If you want to understand the product quickly, do this:
 
 That path shows the product's center of gravity better than reading every route in the codebase. You will see the engagement model, the evidence model, the visibility boundaries, and the report output in a few minutes.
 
+If you are evaluating whether the product is honest, pause at the report section before you publish. The publication gate is one of the most important parts of the system.
+
 ## Environment model
 
 The minimum local configuration lives in [apps/web/.env.example](apps/web/.env.example).
