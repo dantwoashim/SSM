@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import {
+  assertAppUrlConfigured,
+  assertDatabaseConfigured,
+  assertFounderBootstrapConfigured,
+  assertSessionConfigured,
+} from "@/lib/env";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +21,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  assertSessionConfigured();
+  assertFounderBootstrapConfigured();
+  assertAppUrlConfigured();
+  assertDatabaseConfigured();
+
   return (
     <html lang="en">
       <body>
