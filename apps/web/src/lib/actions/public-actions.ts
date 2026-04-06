@@ -3,11 +3,11 @@
 import { redirect } from "next/navigation";
 import { audit, createLead, enforceRateLimit } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
-import { sendLeadNotificationEmail } from "@/lib/email";
-import { logError } from "@/lib/logger";
+import { queueNotification } from "@/lib/email";
 import { assertSameOriginRequest, getRequestIp } from "@/lib/request-context";
 import { parseLeadForm, validationMessage } from "@/lib/validation";
 import { rethrowIfRedirectError } from "@/lib/actions/redirect-errors";
+import { dispatchNotificationJob } from "@/lib/jobs";
 
 export async function submitLeadAction(formData: FormData) {
   await assertSameOriginRequest();
@@ -42,29 +42,28 @@ export async function submitLeadAction(formData: FormData) {
   });
 
   assertAppUrlConfigured();
-  const delivery = await sendLeadNotificationEmail({
-    companyName: parsed.companyName,
-    targetCustomer: parsed.targetCustomer,
-    targetIdp: parsed.targetIdp,
-    dealStage: parsed.dealStage,
-    leadUrl: `${env.appUrl}/app`,
-  }).catch((error) => {
-    logError("lead.notification_failed", error, { leadId: lead.id });
-    return {
-      delivered: false,
-      provider: "manual" as const,
-      message: "Lead saved, but notification email failed. Check the dashboard manually.",
-      providerMessageId: null,
-    };
+  const notification = await queueNotification({
+    actorName: "system",
+    payload: {
+      type: "lead",
+      to: env.notificationEmail || env.founderEmail,
+      companyName: parsed.companyName,
+      targetCustomer: parsed.targetCustomer,
+      targetIdp: parsed.targetIdp,
+      dealStage: parsed.dealStage,
+      leadUrl: `${env.appUrl}/app`,
+    },
   });
-  await audit("system", "lead_notification_processed", "lead", lead.id, {
-    delivered: delivery.delivered,
-    provider: delivery.provider,
-    providerMessageId: delivery.providerMessageId,
+  await dispatchNotificationJob({
+    actorName: "system",
+    notificationId: notification.id,
+  });
+  await audit("system", "lead_notification_queued", "lead", lead.id, {
+    notificationId: notification.id,
   });
 
   return {
-    deliveryMessage: delivery.message,
+    deliveryMessage: "Intake saved. Notification delivery is being processed in the background.",
   };
 }
 
