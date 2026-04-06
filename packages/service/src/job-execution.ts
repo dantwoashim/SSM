@@ -13,6 +13,9 @@ export async function executeQueuedJob(job: AssuranceJob) {
     await markJobRunning(job.data.jobRunId);
 
     if (job.name === "test-plan.generate") {
+      if (!job.data.engagementId) {
+        throw new Error("Test plan jobs require an engagement ID.");
+      }
       await generateTestPlan(job.data.engagementId, job.data.actorName);
       const result = {
         engagementId: job.data.engagementId,
@@ -36,6 +39,9 @@ export async function executeQueuedJob(job: AssuranceJob) {
       return result;
     }
 
+    if (!job.data.engagementId) {
+      throw new Error("Report generation jobs require an engagement ID.");
+    }
     await generateReport(job.data.engagementId, job.data.actorName);
     const result = {
       engagementId: job.data.engagementId,
