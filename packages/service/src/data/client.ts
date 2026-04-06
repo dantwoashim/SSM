@@ -60,28 +60,28 @@ async function getMigrationFiles() {
 }
 
 async function applyMigrations() {
-  if (!database) {
-    if (env.databaseUrl) {
-      const [{ drizzle: drizzlePostgres }, postgresModule] = await Promise.all([
-        import("drizzle-orm/postgres-js"),
-        import("postgres"),
-      ]);
-      const postgres = postgresModule.default;
-      rawClient = postgres(env.databaseUrl, { prepare: false });
-      database = drizzlePostgres(rawClient, { schema });
-    } else {
-      const [{ PGlite }, { drizzle: drizzlePglite }] = await Promise.all([
-        import("@electric-sql/pglite"),
-        import("drizzle-orm/pglite"),
-      ]);
-      await mkdir(localDatabaseDir, { recursive: true });
-      rawClient = new PGlite(path.join(localDatabaseDir, "assurance"));
-      database = drizzlePglite(rawClient, { schema });
-    }
-  }
-
   if (!initialized) {
     initialized = (async () => {
+      if (!database) {
+        if (env.databaseUrl) {
+          const [{ drizzle: drizzlePostgres }, postgresModule] = await Promise.all([
+            import("drizzle-orm/postgres-js"),
+            import("postgres"),
+          ]);
+          const postgres = postgresModule.default;
+          rawClient = postgres(env.databaseUrl, { prepare: false });
+          database = drizzlePostgres(rawClient, { schema });
+        } else {
+          const [{ PGlite }, { drizzle: drizzlePglite }] = await Promise.all([
+            import("@electric-sql/pglite"),
+            import("drizzle-orm/pglite"),
+          ]);
+          await mkdir(localDatabaseDir, { recursive: true });
+          rawClient = new PGlite(path.join(localDatabaseDir, "assurance"));
+          database = drizzlePglite(rawClient, { schema });
+        }
+      }
+
       await executeSql(`
 CREATE TABLE IF NOT EXISTS schema_migrations (
   id text PRIMARY KEY,
