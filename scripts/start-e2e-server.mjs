@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDir, "..");
 const stateRoot = path.join(repositoryRoot, ".runtime", "e2e-state");
+const nextBuildDir = path.join(repositoryRoot, "apps", "web", ".next");
 
 const sharedEnv = {
   ...process.env,
@@ -46,6 +47,7 @@ function run(command, args) {
 }
 
 await rm(stateRoot, { force: true, recursive: true }).catch(() => undefined);
+await rm(nextBuildDir, { force: true, recursive: true }).catch(() => undefined);
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 await run(npmCommand, ["run", "build", "--workspace", "@assurance/web"]);
 await run(npmCommand, ["run", "seed", "--workspace", "@assurance/web"]);

@@ -19,6 +19,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "start": "npm run start --workspace @assurance/web",
     "prepare:local-prod": "npm run build && npm run seed",
+    "smoke:start": "node scripts/smoke-production-start.mjs",
+    "smoke:storage": "node --import tsx scripts/smoke-storage.mjs",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "playwright test",
     "worker": "npm run worker --workspace @assurance/worker",
