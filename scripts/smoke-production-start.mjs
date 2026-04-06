@@ -18,12 +18,17 @@ const baseEnv = {
 
 function run(command, args, env = baseEnv) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: repositoryRoot,
-      env,
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    });
+    const child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", command, ...args], {
+          cwd: repositoryRoot,
+          env,
+          stdio: "inherit",
+        })
+      : spawn(command, args, {
+          cwd: repositoryRoot,
+          env,
+          stdio: "inherit",
+        });
 
     child.on("exit", (code) => {
       if (code === 0) {
@@ -55,14 +60,20 @@ async function waitFor(url, timeoutMs = 60_000) {
 }
 
 await rm(stateRoot, { recursive: true, force: true }).catch(() => undefined);
-await run("npm", ["run", "seed", "--workspace", "@assurance/web"]);
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+await run(npmCommand, ["run", "seed", "--workspace", "@assurance/web"]);
 
-const child = spawn("npm", ["run", "start", "--workspace", "@assurance/web"], {
-  cwd: repositoryRoot,
-  env: baseEnv,
-  stdio: "inherit",
-  shell: process.platform === "win32",
-});
+const child = process.platform === "win32"
+  ? spawn("cmd.exe", ["/d", "/s", "/c", npmCommand, "run", "start", "--workspace", "@assurance/web"], {
+      cwd: repositoryRoot,
+      env: baseEnv,
+      stdio: "inherit",
+    })
+  : spawn(npmCommand, ["run", "start", "--workspace", "@assurance/web"], {
+      cwd: repositoryRoot,
+      env: baseEnv,
+      stdio: "inherit",
+    });
 
 try {
   await waitFor("http://127.0.0.1:3011/api/healthz");
@@ -71,5 +82,9 @@ try {
   console.log("production start smoke passed");
 } finally {
   child.kill("SIGTERM");
+  await new Promise((resolve) => {
+    child.once("exit", () => resolve(undefined));
+    setTimeout(() => resolve(undefined), 5000);
+  });
   await rm(stateRoot, { recursive: true, force: true }).catch(() => undefined);
 }
