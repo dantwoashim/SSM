@@ -60,6 +60,8 @@ npm run smoke:docker
 
 `npm run smoke:docker` proves that the packaged container image can boot and answer the same baseline endpoints.
 
+Use `smoke:start` when you are validating the app directly on a host machine. Use `smoke:docker` when you need to trust the image artifact itself.
+
 ## Backup and restore
 
 If you are using local state during pilot work, use the operational scripts documented in [docs/operations.md](operations.md) before and after any risky deploy or machine migration.
