@@ -6,6 +6,7 @@ import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import { engagementMemberships, invites, users } from "./schema";
 import { assertAppUrlConfigured, env } from "../env";
+import { InviteAccountMismatchError, InviteRequiresSignInError } from "../errors";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -119,9 +120,58 @@ export async function getInviteByToken(token: string) {
   return invite;
 }
 
+export async function getInviteAcceptanceState(input: {
+  token: string;
+  currentUserId?: string | null;
+}) {
+  const invite = await getInviteByToken(input.token);
+
+  if (!invite) {
+    return null;
+  }
+
+  const db = await getDb();
+  const [existingUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, invite.email))
+    .limit(1);
+
+  if (!existingUser) {
+    return {
+      invite,
+      mode: "create-account" as const,
+      existingUser: null,
+    };
+  }
+
+  if (input.currentUserId && input.currentUserId === existingUser.id) {
+    return {
+      invite,
+      mode: "claim-access" as const,
+      existingUser,
+    };
+  }
+
+  if (input.currentUserId && input.currentUserId !== existingUser.id) {
+    return {
+      invite,
+      mode: "wrong-account" as const,
+      existingUser,
+    };
+  }
+
+  return {
+    invite,
+    mode: "sign-in" as const,
+    existingUser,
+  };
+}
+
 export async function acceptInvite(input: {
   token: string;
-  password: string;
+  password?: string | null;
+  currentUserId?: string | null;
 }) {
   const invite = await getInviteByToken(input.token);
 
@@ -137,6 +187,10 @@ export async function acceptInvite(input: {
       .limit(1);
 
     if (!user) {
+      if (!input.password) {
+        throw new Error("Password is required to create this account.");
+      }
+
       user = {
         id: makeId("user"),
         email: invite.email,
@@ -148,9 +202,13 @@ export async function acceptInvite(input: {
       };
       await db.insert(users).values(user);
     } else {
-      throw new Error(
-        "An account already exists for this email. Invite a different address or use account linking instead of overwriting credentials.",
-      );
+      if (!input.currentUserId) {
+        throw new InviteRequiresSignInError(invite.email);
+      }
+
+      if (input.currentUserId !== user.id) {
+        throw new InviteAccountMismatchError(invite.email);
+      }
     }
 
     const [existingMembership] = await db
