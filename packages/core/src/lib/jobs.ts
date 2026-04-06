@@ -1,7 +1,7 @@
 export const assuranceQueueName = "assurance-jobs";
 
 type AssuranceJobPayload = {
-  engagementId: string;
+  engagementId?: string | null;
   actorName: string;
 };
 
