@@ -2,6 +2,7 @@
   "name": "identity-go-live-assurance",
   "private": true,
   "version": "0.1.0",
+  "description": "Enterprise identity go-live assurance for SSO, SCIM, provisioning, and buyer-ready rollout reports.",
   "engines": {
     "node": ">=22 <26"
   },
