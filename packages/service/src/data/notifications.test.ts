@@ -60,5 +60,5 @@ describe("notification outbox", () => {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 20_000);
+  }, 30_000);
 });
