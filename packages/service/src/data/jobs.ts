@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
@@ -82,13 +82,4 @@ export async function markJobFailed(jobRunId: string, errorMessage: string) {
       updatedAt: now(),
     })
     .where(eq(jobRuns.id, jobRunId));
-}
-
-export async function listJobRunsForEngagement(engagementId: string) {
-  const db = await getDb();
-  return db
-    .select()
-    .from(jobRuns)
-    .where(eq(jobRuns.engagementId, engagementId))
-    .orderBy(desc(jobRuns.createdAt));
 }
