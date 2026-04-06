@@ -52,14 +52,7 @@ Use [render.yaml](../render.yaml) as the starting deployment manifest for a web 
 Before a hosted deploy, run:
 
 ```powershell
-npm run lint
-npm run typecheck
-npm run test
-npm run smoke:storage
-npm run build
-npm run smoke:start
-npm run test:e2e
-npm run check:hygiene
+npm run verify
 ```
 
 `npm run smoke:start` boots the production server with local-production safeguards and verifies `healthz`, `readyz`, and the login route before the deploy is treated as credible.
