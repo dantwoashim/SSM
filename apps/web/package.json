@@ -8,12 +8,13 @@
     "build": "next build",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit --incremental false",
-    "start": "node --env-file-if-exists=.env.local .next/standalone/apps/web/server.js",
+    "start": "next start",
     "seed": "tsx src/scripts/seed.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@assurance/core": "*",
+    "@assurance/service": "*",
     "@aws-sdk/client-s3": "^3.758.0",
     "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@electric-sql/pglite": "^0.2.15",

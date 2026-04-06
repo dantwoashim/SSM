@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  transpilePackages: ["@assurance/core"],
+  transpilePackages: ["@assurance/core", "@assurance/service"],
+  allowedDevOrigins: ["http://localhost:3001", "http://127.0.0.1:3001"],
   serverExternalPackages: [
     "@electric-sql/pglite",
     "postgres",
