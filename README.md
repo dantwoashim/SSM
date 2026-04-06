@@ -190,6 +190,8 @@ If you care about the product mechanics, start here:
 - [apps/web/src/app/app/engagements/[id]/page.tsx](apps/web/src/app/app/engagements/[id]/page.tsx) for the operator and customer-facing engagement experience
 - [tests/e2e/app.spec.ts](tests/e2e/app.spec.ts) for the browser coverage around the critical user journeys
 
+That list is also a decent map of the product promise: plan the work, record the evidence, separate internal judgment from customer-safe output, and publish only when the result is defensible.
+
 ## Documentation
 
 If you want the short version first, read these:
