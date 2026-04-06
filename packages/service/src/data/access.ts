@@ -1,6 +1,6 @@
 import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { getDb } from "./client";
-import { engagementMemberships, engagements, findings, invites, jobRuns, leads, reports, users } from "./schema";
+import { engagementMemberships, engagements, findings, invites, jobRuns, leads, notificationOutbox, reports, users } from "./schema";
 
 export async function getUserById(userId: string) {
   const db = await getDb();
@@ -49,6 +49,11 @@ export async function listPortalDataForUser(input: {
       .from(jobRuns)
       .orderBy(desc(jobRuns.updatedAt))
       .limit(10);
+    const recentNotifications = await db
+      .select()
+      .from(notificationOutbox)
+      .orderBy(desc(notificationOutbox.updatedAt))
+      .limit(10);
     const [{ value: activeJobCount }] = await db
       .select({ value: count() })
       .from(jobRuns)
@@ -61,15 +66,21 @@ export async function listPortalDataForUser(input: {
       .select({ value: count() })
       .from(reports)
       .where(eq(reports.status, "published"));
+    const [{ value: manualNotificationCount }] = await db
+      .select({ value: count() })
+      .from(notificationOutbox)
+      .where(or(eq(notificationOutbox.status, "manual_action_required"), eq(notificationOutbox.status, "failed_terminal")));
 
     return {
       leads: leadRows,
       engagements: engagementRows,
       openInvites: openInviteRows,
       recentJobRuns,
+      recentNotifications,
       activeJobCount: Number(activeJobCount),
       openFindingCount: Number(openFindingCount),
       publishedReportCount: Number(publishedReportCount),
+      manualNotificationCount: Number(manualNotificationCount),
     };
   }
 
@@ -107,9 +118,11 @@ export async function listPortalDataForUser(input: {
     engagements: engagementRows,
     openInvites: [],
     recentJobRuns: [],
+    recentNotifications: [],
     activeJobCount: 0,
     openFindingCount: Number(openFindingCount),
     publishedReportCount: Number(publishedReportCount),
+    manualNotificationCount: 0,
   };
 }
 
