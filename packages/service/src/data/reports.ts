@@ -3,7 +3,6 @@ import {
   formatExecutiveSummary,
   type ReportSnapshot,
   scenarioLibrary,
-  sampleReportSnapshot,
 } from "@assurance/core";
 import { eq } from "drizzle-orm";
 import { getDb, runInTransaction } from "./client";
@@ -17,6 +16,23 @@ import {
   reports,
   scenarioRuns as scenarioRunsTable,
 } from "./schema";
+
+function slugifyScenarioTitle(title: string) {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function buildCurrentFindingKey(row: Pick<typeof scenarioRunsTable.$inferSelect, "scenarioId" | "protocol" | "title">) {
+  if (row.scenarioId.startsWith("manual:")) {
+    return row.scenarioId;
+  }
+
+  return `${row.protocol}:${row.scenarioId}:${slugifyScenarioTitle(row.title || row.scenarioId)}`;
+}
 
 function buildReportSnapshot(input: {
   engagement: typeof engagements.$inferSelect;
@@ -39,8 +55,10 @@ function buildReportSnapshot(input: {
     };
   });
 
+  const currentScenarioKeys = new Set(input.scenarioRows.map((row) => buildCurrentFindingKey(row)));
   const findingsView = input.findingRows
     .filter((finding) => finding.status === "open")
+    .filter((finding) => !finding.findingKey || currentScenarioKeys.has(finding.findingKey))
     .map((row) => ({
       title: row.title,
       severity: row.severity,
@@ -162,30 +180,4 @@ export async function findAttachmentById(id: string) {
     .where(eq(attachments.id, id))
     .limit(1);
   return attachment ?? null;
-}
-
-export async function seedSamplePublishedReport(engagementId: string) {
-  const db = await getDb();
-  const existing = await db.select().from(reports).where(eq(reports.engagementId, engagementId)).limit(1);
-
-  if (existing.length > 0) {
-    return existing[0];
-  }
-
-  const report = {
-    id: makeId("report"),
-    engagementId,
-    version: 1,
-    status: "published",
-    executiveSummary: sampleReportSnapshot.summary.executiveSummary,
-    residualRisk: sampleReportSnapshot.summary.residualRisk,
-    scopeBoundaries: sampleReportSnapshot.summary.scopeBoundaries,
-    readinessScore: sampleReportSnapshot.summary.readinessScore,
-    reportJson: sampleReportSnapshot,
-    createdAt: now(),
-    publishedAt: now(),
-  };
-
-  await db.insert(reports).values(report);
-  return report;
 }
