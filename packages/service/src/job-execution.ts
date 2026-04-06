@@ -5,6 +5,7 @@ import {
   markJobCompleted,
   markJobFailed,
   markJobRunning,
+  sendQueuedNotification,
 } from "./data";
 
 export async function executeQueuedJob(job: AssuranceJob) {
@@ -15,6 +16,20 @@ export async function executeQueuedJob(job: AssuranceJob) {
       await generateTestPlan(job.data.engagementId, job.data.actorName);
       const result = {
         engagementId: job.data.engagementId,
+        type: job.name,
+      };
+      await markJobCompleted(job.data.jobRunId, result);
+      return result;
+    }
+
+    if (job.name === "notification.send") {
+      const delivery = await sendQueuedNotification(job.data.notificationId);
+      const result = {
+        engagementId: job.data.engagementId,
+        notificationId: job.data.notificationId,
+        delivered: delivery.delivered,
+        provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId,
         type: job.name,
       };
       await markJobCompleted(job.data.jobRunId, result);
