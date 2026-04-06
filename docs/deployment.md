@@ -15,6 +15,8 @@ Use local self-hosting with Cloudflare Tunnel:
 - S3-compatible artifact storage is required for production uploads
 - Transactional email is optional but strongly recommended for lead and invite response time
 
+The current container path uses the standard production Next server, not a custom wrapper. That keeps the runtime model plain and easier to reason about when something goes wrong.
+
 ## Health endpoints
 
 - `/api/healthz` for process-level liveness
