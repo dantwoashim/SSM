@@ -38,6 +38,7 @@ import {
   validationMessage,
   validateAttachmentUpload,
 } from "@/lib/validation";
+import { rethrowIfRedirectError } from "@/lib/actions/redirect-errors";
 
 async function requireActor() {
   await assertSameOriginRequest();
@@ -105,6 +106,7 @@ export async function createEngagementAndRedirectAction(formData: FormData) {
     const engagement = await createEngagementAction(formData);
     redirect(`/app/engagements/${engagement.id}`);
   } catch (error) {
+    rethrowIfRedirectError(error);
     const params = new URLSearchParams({
       error: validationMessage(error),
     });
@@ -314,5 +316,34 @@ export async function createInviteAction(
       error: validationMessage(error),
       deliveryMessage: "",
     };
+  }
+}
+
+export async function createInviteAndRedirectAction(formData: FormData) {
+  const engagementId = formData.get("engagementId")?.toString() || "";
+
+  try {
+    const result = await createInviteAction(undefined, formData);
+    const params = new URLSearchParams();
+
+    if (result.inviteUrl) {
+      params.set("inviteUrl", result.inviteUrl);
+    }
+
+    if (result.deliveryMessage) {
+      params.set("inviteNotice", result.deliveryMessage);
+    }
+
+    redirect(
+      params.size > 0
+        ? `/app/engagements/${engagementId}?${params.toString()}`
+        : `/app/engagements/${engagementId}`,
+    );
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    const params = new URLSearchParams({
+      inviteError: validationMessage(error),
+    });
+    redirect(`/app/engagements/${engagementId}?${params.toString()}`);
   }
 }
