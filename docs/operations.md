@@ -48,6 +48,8 @@ It fails when:
 - Redis is configured but unavailable
 - queue mode is expected and there is no healthy worker heartbeat
 
+In the founder portal, treat `manual_action_required` notifications as real work to clear, not cosmetic warnings. That state means the system preserved intent but could not complete delivery on its own.
+
 ## Logs and request tracking
 
 Every response includes an `x-request-id` header generated in middleware. Keep that header when collecting failure details from the browser, reverse proxy, or application logs.
