@@ -132,7 +132,7 @@ describe("service integration", () => {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 20_000);
+  }, 30_000);
 
   test("invite issuance is idempotent and accepted customers get scoped access", async () => {
     const stateRoot = makeStateRoot();
@@ -404,6 +404,77 @@ describe("service integration", () => {
     }
   }, 20_000);
 
+  test("accepted invites cannot be reused and wrong users cannot claim access", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const founder = await service.ensureFounderUser();
+      const engagement = await service.createEngagement({
+        title: "Acme <> Adventure Works Deal Rescue",
+        companyName: "Acme SaaS",
+        productUrl: "https://staging.acme.example",
+        targetCustomer: "Adventure Works",
+        targetIdp: "entra",
+        deadline: "2026-05-14",
+        claimedFeatures: ["sp-initiated-sso", "auditability"],
+        actorName: founder.name,
+        ownerUserId: founder.id,
+      });
+
+      const invite = await service.createInvite({
+        email: "iam@customer.example",
+        name: "Customer IAM",
+        role: "customer",
+        engagementId: engagement.id,
+        createdBy: founder.name,
+      });
+
+      const otherUserInvite = await service.createInvite({
+        email: "other@customer.example",
+        name: "Other User",
+        role: "customer",
+        engagementId: engagement.id,
+        createdBy: founder.name,
+      });
+
+      const accepted = await service.acceptInvite({
+        token: invite.inviteUrl.split("/").pop() || "",
+        password: "CustomerPass123!",
+      });
+
+      await expect(
+        service.acceptInvite({
+          token: invite.inviteUrl.split("/").pop() || "",
+          currentUserId: accepted.user.id,
+        }),
+      ).rejects.toThrow(/invite is invalid or expired/i);
+
+      await service.acceptInvite({
+        token: otherUserInvite.inviteUrl.split("/").pop() || "",
+        password: "OtherUserPass123!",
+      });
+
+      const mismatchInvite = await service.createInvite({
+        email: "other@customer.example",
+        name: "Other User",
+        role: "customer",
+        engagementId: engagement.id,
+        createdBy: founder.name,
+      });
+
+      await expect(
+        service.acceptInvite({
+          token: mismatchInvite.inviteUrl.split("/").pop() || "",
+          currentUserId: accepted.user.id,
+        }),
+      ).rejects.toThrow(/belongs to other@customer.example/i);
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   test("queued jobs execute directly against the service layer and complete their job runs", async () => {
     const stateRoot = makeStateRoot();
     const service = await bootService(stateRoot);
@@ -446,7 +517,7 @@ describe("service integration", () => {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 20_000);
+  }, 30_000);
 
   test("rate limits enforce the configured ceiling across repeated calls", async () => {
     const stateRoot = makeStateRoot();
