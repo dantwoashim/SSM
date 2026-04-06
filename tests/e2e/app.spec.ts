@@ -24,7 +24,8 @@ test("public intake submits successfully", async ({ page }) => {
   await page.getByLabel("Staging access method").fill("Shared review workspace");
   await page.getByLabel("Timeline").fill("Need report this week");
   await page.getByLabel("Decision deadline").fill("2026-05-15");
-  await page.getByLabel("Claimed / required flows").fill("sp-initiated-sso, scim-create");
+  await page.getByLabel("SP-initiated SSO").check();
+  await page.getByLabel("SCIM create").check();
   await page.getByLabel("Additional context").fill("Buyer wants confidence in first-run provisioning.");
   await Promise.all([
     page.waitForURL(/\/intake\?success=1/),
@@ -53,7 +54,9 @@ test("founder can create an engagement and generate a test plan", async ({ page 
   await page.getByLabel("Target customer").fill("Litware");
   await page.getByLabel("Target IdP").selectOption("entra");
   await page.getByLabel("Deadline").fill("2026-05-18");
-  await page.getByLabel("Claimed features").fill("sp-initiated-sso, group-role-mapping, auditability");
+  await page.getByLabel("SP-initiated SSO").check();
+  await page.getByLabel("Group-to-role mapping").check();
+  await page.getByLabel("Auditability").check();
   await Promise.all([
     page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
     page.getByRole("button", { name: "Create engagement" }).click(),
@@ -146,7 +149,8 @@ test("existing customers can claim access to a new engagement without resetting 
   await page.getByLabel("Target customer").fill("Wingtip");
   await page.getByLabel("Target IdP").selectOption("okta");
   await page.getByLabel("Deadline").fill("2026-05-20");
-  await page.getByLabel("Claimed features").fill("sp-initiated-sso, auditability");
+  await page.getByLabel("SP-initiated SSO").check();
+  await page.getByLabel("Auditability").check();
   await Promise.all([
     page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
     page.getByRole("button", { name: "Create engagement" }).click(),
@@ -190,7 +194,7 @@ test("a passing retest resolves the seeded open finding", async ({ page }) => {
 
   await scenarioCard.getByLabel("Outcome").selectOption("passed");
   await scenarioCard
-    .getByLabel("Reviewer notes")
+    .getByLabel("Operator notes")
     .fill("Confirmed on retest that the admin group now maps correctly.");
   await scenarioCard.getByRole("button", { name: "Save scenario review" }).click();
 
