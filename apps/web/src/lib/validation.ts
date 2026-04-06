@@ -65,6 +65,25 @@ function parseFeatureCsv(value: string) {
   return [...new Set(features.data)];
 }
 
+function parseFeatureValues(formData: FormData, field: string) {
+  const rawValues = formData
+    .getAll(field)
+    .map((item) => item?.toString().trim() || "")
+    .filter(Boolean);
+
+  if (rawValues.length > 0) {
+    const parsed = z.array(claimedFeatureSchema).min(1).safeParse(rawValues);
+
+    if (!parsed.success) {
+      throw makeValidationError(parsed.error);
+    }
+
+    return [...new Set(parsed.data)];
+  }
+
+  return parseFeatureCsv(stringValue(formData, field));
+}
+
 function makeValidationError(error: z.ZodError) {
   const flattened = error.flatten().fieldErrors;
   const fieldErrors: Record<string, string[]> = {};
@@ -181,7 +200,7 @@ export function parseLeadForm(formData: FormData) {
 
   return {
     ...result.data,
-    requiredFlows: parseFeatureCsv(stringValue(formData, "requiredFlows")),
+    requiredFlows: parseFeatureValues(formData, "requiredFlows"),
   };
 }
 
@@ -216,7 +235,7 @@ export function parseCreateEngagementForm(formData: FormData) {
 
   return {
     ...result.data,
-    claimedFeatures: parseFeatureCsv(stringValue(formData, "claimedFeatures")),
+    claimedFeatures: parseFeatureValues(formData, "claimedFeatures"),
   };
 }
 
@@ -237,6 +256,8 @@ export function parseScenarioReviewForm(formData: FormData) {
     scenarioRunId: z.string().regex(idPattern),
     outcome: scenarioOutcomeSchema,
     reviewerNotes: z.string().max(4000),
+    customerVisibleSummary: z.string().max(2000),
+    buyerSafeReportNote: z.string().max(2000),
   });
 
   const result = schema.safeParse({
@@ -244,6 +265,8 @@ export function parseScenarioReviewForm(formData: FormData) {
     scenarioRunId: stringValue(formData, "scenarioRunId"),
     outcome: stringValue(formData, "outcome"),
     reviewerNotes: stringValue(formData, "reviewerNotes"),
+    customerVisibleSummary: stringValue(formData, "customerVisibleSummary"),
+    buyerSafeReportNote: stringValue(formData, "buyerSafeReportNote"),
   });
 
   if (!result.success) {
@@ -260,6 +283,8 @@ export function parseManualScenarioForm(formData: FormData) {
     protocol: scenarioProtocolSchema,
     executionMode: scenarioExecutionModeSchema,
     reviewerNotes: z.string().max(4000),
+    customerVisibleSummary: z.string().max(2000),
+    buyerSafeReportNote: z.string().max(2000),
   });
 
   const result = schema.safeParse({
@@ -268,6 +293,8 @@ export function parseManualScenarioForm(formData: FormData) {
     protocol: stringValue(formData, "protocol"),
     executionMode: stringValue(formData, "executionMode") || "manual",
     reviewerNotes: stringValue(formData, "reviewerNotes"),
+    customerVisibleSummary: stringValue(formData, "customerVisibleSummary"),
+    buyerSafeReportNote: stringValue(formData, "buyerSafeReportNote"),
   });
 
   if (!result.success) {
@@ -301,10 +328,12 @@ export function parsePublishReportForm(formData: FormData) {
   const schema = z.object({
     reportId: z.string().regex(idPattern),
     engagementId: z.string().regex(idPattern),
+    acknowledgeWarnings: z.boolean(),
   });
   const result = schema.safeParse({
     reportId: stringValue(formData, "reportId"),
     engagementId: stringValue(formData, "engagementId"),
+    acknowledgeWarnings: formData.get("acknowledgeWarnings")?.toString() === "1",
   });
 
   if (!result.success) {
