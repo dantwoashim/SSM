@@ -14,7 +14,7 @@ async function processInline(job: AssuranceJob) {
 
 export async function dispatchJob(job: DispatchableAssuranceJob) {
   const jobRun = await createJobRun({
-    engagementId: job.data.engagementId,
+    engagementId: job.data.engagementId || null,
     name: job.name,
     actorName: job.data.actorName,
     payload: job.data,
@@ -75,20 +75,20 @@ export async function dispatchNotificationJob(input: {
   actorName: string;
   notificationId: string;
 }) {
-  if (!input.engagementId) {
-    queueMicrotask(() => {
-      void sendQueuedNotification(input.notificationId).catch(() => undefined);
-    });
+  if (!env.redisUrl) {
+    const delivery = await sendQueuedNotification(input.notificationId);
     return {
-      mode: "background" as const,
+      mode: "inline" as const,
       notificationId: input.notificationId,
+      delivered: delivery.delivered,
+      provider: delivery.provider,
     };
   }
 
   return dispatchJob({
     name: "notification.send",
     data: {
-      engagementId: input.engagementId,
+      engagementId: input.engagementId || null,
       actorName: input.actorName,
       notificationId: input.notificationId,
     },
