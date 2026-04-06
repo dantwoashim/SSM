@@ -28,14 +28,7 @@ The restore script replaces the current local database and storage directories w
 Run the full verification stack before changing the deployment or sharing a new hosted build:
 
 ```powershell
-npm run lint
-npm run typecheck
-npm run test
-npm run smoke:storage
-npm run build
-npm run smoke:start
-npm run test:e2e
-npm run check:hygiene
+npm run verify
 ```
 
 ## Runtime expectations
