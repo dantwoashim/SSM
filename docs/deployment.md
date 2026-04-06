@@ -25,14 +25,12 @@ Use local self-hosting with Cloudflare Tunnel:
 - Web:
   - `APP_URL`
   - `SESSION_SECRET`
-  - `JOB_EXECUTOR_TOKEN` when `REDIS_URL` is enabled
   - `FOUNDER_EMAIL`
   - `FOUNDER_PASSWORD`
   - `DATABASE_URL`
 - Worker:
+  - `DATABASE_URL`
   - `REDIS_URL`
-  - `WEB_APP_URL`
-  - `JOB_EXECUTOR_TOKEN`
 - Optional but recommended:
   - `NOTIFICATION_EMAIL`
   - `RESEND_API_KEY`
