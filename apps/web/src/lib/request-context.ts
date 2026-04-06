@@ -1,6 +1,11 @@
 import { headers } from "next/headers";
 import { env } from "./env";
 
+export async function getRequestId() {
+  const requestHeaders = await headers();
+  return requestHeaders.get("x-request-id") || "unknown";
+}
+
 export async function getRequestIp() {
   const requestHeaders = await headers();
   const forwardedFor = requestHeaders.get("cf-connecting-ip")
@@ -12,6 +17,13 @@ export async function getRequestIp() {
   }
 
   return forwardedFor.split(",")[0]!.trim();
+}
+
+export async function getRequestMetadata() {
+  return {
+    requestId: await getRequestId(),
+    requestIp: await getRequestIp(),
+  };
 }
 
 export async function assertSameOriginRequest() {
