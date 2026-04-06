@@ -140,6 +140,7 @@ From the repository root:
 ```powershell
 npm run dev
 npm run seed
+npm run verify
 npm run lint
 npm run typecheck
 npm run test
@@ -193,3 +194,5 @@ If you want the short version first, read these:
 This repository is a working product for a service-led business.
 
 It does not pretend the delivery work is fully automated. It does the more important thing: it gives that work a rigorous operating system, a clean evidence trail, and a report that can survive contact with a buyer's identity team.
+
+The seeded records and sample report pages are clearly marked demo content. They exist so you can evaluate the workflow quickly, not to imply that the repository ships with live customer evidence.
