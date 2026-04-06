@@ -1,0 +1,31 @@
+{
+  "name": "@assurance/service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./access": "./src/data/access.ts",
+    "./client": "./src/data/client.ts",
+    "./schema": "./src/data/schema.ts",
+    "./env": "./src/env.ts",
+    "./logger": "./src/logger.ts",
+    "./job-execution": "./src/job-execution.ts"
+  },
+  "dependencies": {
+    "@assurance/core": "*",
+    "@electric-sql/pglite": "^0.2.15",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.41.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false"
+  }
+}
