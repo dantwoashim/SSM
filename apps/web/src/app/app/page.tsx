@@ -27,8 +27,17 @@ type DashboardJobRun = {
   id: string;
   name: string;
   status: string;
-  engagementId: string;
+  engagementId: string | null;
   updatedAt: string;
+};
+
+type DashboardNotification = {
+  id: string;
+  kind: string;
+  status: string;
+  engagementId: string | null;
+  updatedAt: string;
+  manualAction: string | null;
 };
 
 export default async function DashboardPage() {
@@ -49,6 +58,7 @@ export default async function DashboardPage() {
   const engagementRows: DashboardEngagement[] = dashboard.engagements;
   const leadRows: DashboardLead[] = dashboard.leads;
   const recentJobRuns: DashboardJobRun[] = dashboard.recentJobRuns;
+  const recentNotifications: DashboardNotification[] = dashboard.recentNotifications;
 
   return (
     <>
@@ -76,6 +86,12 @@ export default async function DashboardPage() {
           <span className="metric-value">{dashboard.activeJobCount}</span>
           <span className="metric-label">Active jobs</span>
         </div>
+        {session.role === "founder" ? (
+          <div className="metric">
+            <span className="metric-value">{dashboard.manualNotificationCount}</span>
+            <span className="metric-label">Manual notifications</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="layout-sidebar">
@@ -125,11 +141,37 @@ export default async function DashboardPage() {
                   <div className="activity-item" key={job.id}>
                     <strong>{titleCase(job.name)}</strong>
                     <span className="activity-meta">
-                      {titleCase(job.status)} / {formatDate(job.updatedAt)} /{" "}
-                      <Link href={`/app/engagements/${job.engagementId}`}>
-                        Open
-                      </Link>
+                      {titleCase(job.status)} / {formatDate(job.updatedAt)}
+                      {job.engagementId ? (
+                        <>
+                          {" / "}
+                          <Link href={`/app/engagements/${job.engagementId}`}>
+                            Open
+                          </Link>
+                        </>
+                      ) : null}
                     </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {session.role === "founder" && recentNotifications.length > 0 ? (
+            <div className="detail-section">
+              <h3>Notification outbox</h3>
+              <div className="activity-feed">
+                {recentNotifications.map((notification) => (
+                  <div className="activity-item" key={notification.id}>
+                    <strong>{titleCase(notification.kind)}</strong>
+                    <span className="activity-meta">
+                      {titleCase(notification.status)} / {formatDate(notification.updatedAt)}
+                    </span>
+                    {notification.manualAction ? (
+                      <p className="list-item-body">{notification.manualAction}</p>
+                    ) : null}
+                    {notification.engagementId ? (
+                      <Link href={`/app/engagements/${notification.engagementId}`}>Open engagement</Link>
+                    ) : null}
                   </div>
                 ))}
               </div>
