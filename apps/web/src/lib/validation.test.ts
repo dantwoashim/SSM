@@ -12,10 +12,17 @@ import {
   validateAttachmentUpload,
 } from "./validation";
 
-function buildFormData(values: Record<string, string>) {
+function buildFormData(values: Record<string, string | string[]>) {
   const formData = new FormData();
 
   for (const [key, value] of Object.entries(values)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        formData.append(key, entry);
+      }
+      continue;
+    }
+
     formData.set(key, value);
   }
 
@@ -86,7 +93,7 @@ describe("validation helpers", () => {
           stagingAccessMethod: "Magic link",
           timeline: "Need packet this week",
           deadline: "2026-03-20",
-          requiredFlows: "sp-initiated-sso, scim-create",
+          requiredFlows: ["sp-initiated-sso", "scim-create"],
           website: "https://spam.example",
         }),
       ),
@@ -101,7 +108,7 @@ describe("validation helpers", () => {
         productUrl: "https://acme.example",
         targetCustomer: "Northwind",
         targetIdp: "okta",
-        claimedFeatures: "sp-initiated-sso, group-role-mapping",
+        claimedFeatures: ["sp-initiated-sso", "group-role-mapping"],
         deadline: "2026-03-21",
       }),
     );
@@ -134,7 +141,7 @@ describe("validation helpers", () => {
           productUrl: "https://acme.example",
           targetCustomer: "Northwind",
           targetIdp: "okta",
-          claimedFeatures: "sp-initiated-sso, group-role-mapping",
+          claimedFeatures: ["sp-initiated-sso", "group-role-mapping"],
           deadline: "2026-02-30",
         }),
       ),
