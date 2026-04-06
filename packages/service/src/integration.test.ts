@@ -85,6 +85,8 @@ describe("service integration", () => {
         scenarioRunId: failingScenario.id,
         outcome: "failed",
         reviewerNotes: "Finance-Admin was mapped to viewer instead of admin.",
+        customerVisibleSummary: "Finance-Admin did not receive the intended admin role.",
+        buyerSafeReportNote: "Group-to-role mapping under-assigned access during the staged validation cycle.",
         actorName: founder.name,
       });
 
@@ -93,6 +95,8 @@ describe("service integration", () => {
           scenarioRunId: scenario.id,
           outcome: "passed",
           reviewerNotes: `${scenario.title || scenario.scenarioId} completed successfully.`,
+          customerVisibleSummary: `${scenario.title || scenario.scenarioId} completed successfully.`,
+          buyerSafeReportNote: `${scenario.title || scenario.scenarioId} completed successfully during the current validation cycle.`,
           actorName: founder.name,
         });
       }
@@ -123,7 +127,7 @@ describe("service integration", () => {
       expect(latestReport?.reportJson.scenarios.some((scenario: { evidenceCount: number }) => scenario.evidenceCount > 0)).toBe(true);
       expect(latestReport?.reportJson.findings.some((finding: { evidenceCount: number }) => finding.evidenceCount > 0)).toBe(true);
 
-      await service.publishReport(report.id, founder.name);
+      await service.publishReport(report.id, founder.name, true);
 
       const detailAfterPublish = await service.getEngagementDetail(firstEngagement.id);
       expect(detailAfterPublish?.reportRows[0]?.status).toBe("published");
@@ -221,6 +225,8 @@ describe("service integration", () => {
         scenarioRunId: targetScenario.id,
         outcome: "failed",
         reviewerNotes: "Finance Admin still maps to viewer.",
+        customerVisibleSummary: "Finance Admin did not receive the intended role.",
+        buyerSafeReportNote: "Group-to-role mapping did not produce the intended admin access during validation.",
         actorName: founder.name,
       });
 
@@ -236,6 +242,8 @@ describe("service integration", () => {
         scenarioRunId: retestScenario.id,
         outcome: "skipped",
         reviewerNotes: "Customer admin was unavailable for the retest window.",
+        customerVisibleSummary: "The retest could not be completed because the customer admin was unavailable.",
+        buyerSafeReportNote: "This scenario was skipped during the current cycle because the customer admin was unavailable.",
         actorName: founder.name,
       });
 
@@ -251,6 +259,8 @@ describe("service integration", () => {
         scenarioRunId: passingScenario.id,
         outcome: "passed",
         reviewerNotes: "Admin group now lands on the correct role.",
+        customerVisibleSummary: "The admin group now lands on the correct role.",
+        buyerSafeReportNote: "The retest confirmed that group-to-role mapping now produces the intended admin access.",
         actorName: founder.name,
       });
 
@@ -300,6 +310,8 @@ describe("service integration", () => {
         protocol: "ops",
         executionMode: "manual",
         reviewerNotes: "This customer provisions admins through a side channel before first login.",
+        customerVisibleSummary: "This scenario validates the customer-specific bootstrap path for admin access.",
+        buyerSafeReportNote: "A customer-specific bootstrap scenario was added to validate admin access before first login.",
         actorName: founder.name,
       });
 
@@ -307,6 +319,8 @@ describe("service integration", () => {
         scenarioRunId: manualScenario.id,
         outcome: "failed",
         reviewerNotes: "Bootstrap admin landed without the required tenant binding.",
+        customerVisibleSummary: "The bootstrap admin account did not land with the required tenant binding.",
+        buyerSafeReportNote: "The customer-specific bootstrap path did not preserve the required tenant binding during validation.",
         actorName: founder.name,
       });
 
