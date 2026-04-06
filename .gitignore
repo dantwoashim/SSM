@@ -9,3 +9,4 @@ coverage
 storage
 *.log
 .runtime/
+output/
