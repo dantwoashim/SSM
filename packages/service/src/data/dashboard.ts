@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { engagements, findings, leads, reports } from "./schema";
 
@@ -17,13 +17,19 @@ export async function listDashboardData(): Promise<DashboardData> {
     .from(engagements)
     .orderBy(desc(engagements.updatedAt))
     .limit(12);
-  const findingRows = await db.select().from(findings).where(eq(findings.status, "open"));
-  const reportRows = await db.select().from(reports).where(eq(reports.status, "published"));
+  const [{ value: openFindingCount }] = await db
+    .select({ value: count() })
+    .from(findings)
+    .where(eq(findings.status, "open"));
+  const [{ value: publishedReportCount }] = await db
+    .select({ value: count() })
+    .from(reports)
+    .where(eq(reports.status, "published"));
 
   return {
     leads: leadRows,
     engagements: engagementRows,
-    openFindings: findingRows.length,
-    publishedReports: reportRows.length,
+    openFindings: Number(openFindingCount),
+    publishedReports: Number(publishedReportCount),
   };
 }
