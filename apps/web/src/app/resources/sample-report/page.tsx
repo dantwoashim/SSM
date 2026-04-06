@@ -9,9 +9,12 @@ export default function SampleReportPage() {
       <PageHeader
         label="Sample report"
         title="A redacted assurance packet designed for real buyer scrutiny."
-        description="This sample shows how the product captures scope, scenario outcomes, and buyer-safe remediation language."
+        description="This sample uses redacted demo data to show how the product captures scope, scenario outcomes, and buyer-safe remediation language."
       />
       <section className="content-section">
+        <div className="callout mb-lg">
+          Demo data. This page is a redacted sample built from seeded example records, not a live customer packet.
+        </div>
         <div className="layout-two">
           <div>
             <h3>Executive summary</h3>
