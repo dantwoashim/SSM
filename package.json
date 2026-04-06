@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @assurance/web",
-    "build": "npm run lint && npm run typecheck && npm run build:app",
+    "build": "npm run build:app",
     "build:app": "npm run build --workspaces --if-present",
     "check:hygiene": "node scripts/check-release-hygiene.mjs",
     "lint": "npm run lint --workspaces --if-present",
@@ -23,6 +23,7 @@
     "smoke:storage": "node --import tsx scripts/smoke-storage.mjs",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "playwright test",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run smoke:storage && npm run build && npm run smoke:start && npm run test:e2e && npm run check:hygiene",
     "worker": "npm run worker --workspace @assurance/worker",
     "seed": "npm run seed --workspace @assurance/web"
   },
