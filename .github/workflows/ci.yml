@@ -30,6 +30,17 @@ jobs:
       - name: Verify repository
         run: npm run verify
 
+      - name: Build Docker image
+        run: npm run smoke:docker
+
+      - name: Show Docker container logs on failure
+        if: failure()
+        run: docker logs assurance-smoke
+
+      - name: Remove Docker smoke container
+        if: always()
+        run: docker rm -f assurance-smoke || true
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
