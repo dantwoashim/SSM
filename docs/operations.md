@@ -31,6 +31,12 @@ Run the full verification stack before changing the deployment or sharing a new 
 npm run verify
 ```
 
+If you are planning to ship the Docker image or rely on the hosted deployment path, run this too:
+
+```powershell
+npm run smoke:docker
+```
+
 ## Runtime expectations
 
 `/api/readyz` is the authoritative readiness check.
