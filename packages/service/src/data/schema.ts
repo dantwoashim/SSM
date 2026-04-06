@@ -109,7 +109,7 @@ export const testRuns = pgTable("test_runs", {
 
 export const jobRuns = pgTable("job_runs", {
   id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+  engagementId: text("engagement_id").references(() => engagements.id, {
     onDelete: "cascade",
   }),
   name: text("name").notNull(),
@@ -135,6 +135,8 @@ export const scenarioRuns = pgTable("scenario_runs", {
   executionMode: text("execution_mode").notNull(),
   protocol: text("protocol").notNull(),
   reviewerNotes: text("reviewer_notes"),
+  customerVisibleSummary: text("customer_visible_summary"),
+  buyerSafeReportNote: text("buyer_safe_report_note"),
   evidence: jsonb("evidence").$type<string[]>().notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -163,6 +165,8 @@ export const findings = pgTable(
     severity: text("severity").$type<Severity>().notNull(),
     customerImpact: text("customer_impact").notNull(),
     summary: text("summary").notNull(),
+    customerSummary: text("customer_summary"),
+    reportSummary: text("report_summary"),
     rootCause: text("root_cause"),
     remediation: text("remediation").notNull(),
     ownerHint: text("owner_hint"),
@@ -228,9 +232,12 @@ export const attachments = pgTable("attachments", {
   visibility: text("visibility").notNull(),
   fileName: text("file_name").notNull(),
   storageKey: text("storage_key").notNull(),
+  checksumSha256: text("checksum_sha256"),
+  storageStatus: text("storage_status").notNull(),
   contentType: text("content_type").notNull(),
   size: integer("size").notNull(),
   createdAt: text("created_at").notNull(),
+  deletedAt: text("deleted_at"),
 });
 
 export const requestLimits = pgTable("request_limits", {
@@ -263,6 +270,10 @@ export const notificationOutbox = pgTable(
     kind: text("kind").notNull(),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
     status: text("status").notNull(),
+    attemptCount: integer("attempt_count").notNull(),
+    reservedAt: text("reserved_at"),
+    idempotencyKey: text("idempotency_key"),
+    manualAction: text("manual_action"),
     lastError: text("last_error"),
     provider: text("provider"),
     providerMessageId: text("provider_message_id"),
@@ -273,15 +284,20 @@ export const notificationOutbox = pgTable(
   (table) => ({
     statusIdx: index("notification_outbox_status_idx").on(table.status, table.updatedAt),
     engagementIdx: index("notification_outbox_engagement_idx").on(table.engagementId, table.createdAt),
+    idempotencyIdx: uniqueIndex("notification_outbox_idempotency_idx").on(table.idempotencyKey),
   }),
 );
 
 export const auditLogs = pgTable("audit_logs", {
   id: text("id").primaryKey(),
   actorName: text("actor_name").notNull(),
+  actorId: text("actor_id"),
+  actorRole: text("actor_role"),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id").notNull(),
+  requestId: text("request_id"),
+  requestIp: text("request_ip"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
   createdAt: text("created_at").notNull(),
 });
