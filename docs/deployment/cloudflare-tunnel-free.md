@@ -106,6 +106,8 @@ This archives:
 - `.pglite`
 - `storage`
 
+Because this mode uses inline execution instead of a queue-backed worker, invite delivery and report notifications may complete during the same request. The portal reflects that directly rather than pretending the work always happens in the background.
+
 ## Practical hardening
 
 - Use a dedicated machine if possible
