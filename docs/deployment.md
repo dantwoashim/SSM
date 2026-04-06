@@ -53,9 +53,12 @@ Before a hosted deploy, run:
 
 ```powershell
 npm run verify
+npm run smoke:docker
 ```
 
 `npm run smoke:start` boots the production server with local-production safeguards and verifies `healthz`, `readyz`, and the login route before the deploy is treated as credible.
+
+`npm run smoke:docker` proves that the packaged container image can boot and answer the same baseline endpoints.
 
 ## Backup and restore
 
