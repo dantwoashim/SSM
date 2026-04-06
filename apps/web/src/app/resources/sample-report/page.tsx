@@ -49,7 +49,7 @@ export default function SampleReportPage() {
                 <li key={finding.title}>
                   <strong>{finding.title}</strong>
                   <br />
-                  <span className="body-sm">{finding.summary}</span>
+                  <span className="body-sm">{finding.customerSummary}</span>
                 </li>
               ))}
             </ul>
