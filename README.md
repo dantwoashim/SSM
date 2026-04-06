@@ -43,6 +43,8 @@ From the outside, the workflow is simple.
 7. Publication is gated when execution coverage is incomplete or still needs explicit acknowledgment.
 8. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
 
+What it does not do is fake confidence. A half-reviewed rollout should not look like a clean go-live. The reporting path is designed to preserve that distinction.
+
 That is the whole point of the product. It should be possible to go from "the buyer needs proof this week" to a defensible package without juggling spreadsheets, screenshots, and email threads.
 
 ## What lives in this repository
