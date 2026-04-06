@@ -1,4 +1,5 @@
 import { createEngagementAndRedirectAction } from "@/lib/actions/engagement-actions";
+import { ClaimedFeatureSelector } from "@/components/claimed-feature-selector";
 import { SubmitButton } from "@/components/submit-button";
 
 export default async function NewEngagementPage({
@@ -42,12 +43,9 @@ export default async function NewEngagementPage({
             <input id="deadline" name="deadline" type="date" />
           </div>
           <div className="field-wide">
-            <label htmlFor="claimedFeatures">Claimed features</label>
-            <input
-              id="claimedFeatures"
-              name="claimedFeatures"
-              placeholder="Comma-separated, e.g. sp-initiated-sso, scim-create, group-role-mapping"
-              required
+            <ClaimedFeatureSelector
+              fieldName="claimedFeatures"
+              legend="Claimed features"
             />
           </div>
         </div>
