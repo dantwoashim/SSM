@@ -33,6 +33,17 @@ test("public intake submits successfully", async ({ page }) => {
   await expect(page.getByText("Intake received.")).toBeVisible();
 });
 
+test("readiness reflects inline local mode during browser smoke runs", async ({ request }) => {
+  const response = await request.get("/api/readyz");
+  expect(response.ok()).toBe(true);
+  await expect(response.json()).resolves.toMatchObject({
+    ok: true,
+    queueMode: "inline",
+    storageMode: "local",
+    storageReady: true,
+  });
+});
+
 test("founder can create an engagement and generate a test plan", async ({ page }) => {
   await signInAsFounder(page);
   await page.goto("/app/engagements/new");
@@ -81,9 +92,10 @@ test("founder can invite a customer, upload evidence, and the customer can sign 
   await page.getByLabel("Name").fill("Northwind IAM");
   await page.getByLabel("Email").fill("iam@northwind.example");
   await Promise.all([
-    page.waitForURL(/inviteUrl=/),
+    page.waitForURL(engagementUrl),
     page.getByRole("button", { name: "Create invite" }).click(),
   ]);
+  await expect(page).not.toHaveURL(/inviteUrl=|inviteNotice=|inviteError=/);
   const inviteLink = await page.locator(".break-anywhere").last().textContent();
   expect(inviteLink).toBeTruthy();
 
@@ -100,4 +112,87 @@ test("founder can invite a customer, upload evidence, and the customer can sign 
   await expect(customerPage.getByRole("heading", { name: "Access scope" })).toBeVisible();
   await expect(customerPage.getByText("sample-evidence.txt")).toBeVisible();
   await customerContext.close();
+});
+
+test("existing customers can claim access to a new engagement without resetting their account", async ({ page, browser }) => {
+  const returningCustomerEmail = "repeat-iam@northwind.example";
+  await signInAsFounder(page);
+  await page.goto("/app");
+  await Promise.all([
+    page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
+    page.getByRole("link", { name: /Acme SaaS <> Northwind Financial Deal Rescue/i }).click(),
+  ]);
+  const firstEngagementUrl = page.url();
+  await page.getByLabel("Name").fill("Northwind IAM");
+  await page.getByLabel("Email").fill(returningCustomerEmail);
+  await page.getByRole("button", { name: "Create invite" }).click();
+  await expect(page).toHaveURL(firstEngagementUrl);
+  const firstInviteLink = await page.locator(".break-anywhere").last().textContent();
+  expect(firstInviteLink).toBeTruthy();
+
+  const customerContext = await browser.newContext();
+  const customerPage = await customerContext.newPage();
+  await customerPage.goto(firstInviteLink || "/");
+  await customerPage.getByLabel("Password").fill("CustomerPass123!");
+  await Promise.all([
+    customerPage.waitForURL(/\/app(\/engagements\/eng_[^/]+)?$/),
+    customerPage.getByRole("button", { name: "Activate account" }).click(),
+  ]);
+
+  await page.goto("/app/engagements/new");
+  await page.getByLabel("Engagement title").fill("Acme <> Wingtip Deal Rescue");
+  await page.getByLabel("Company name").fill("Acme SaaS");
+  await page.getByLabel("Product URL").fill("https://staging.acme.example");
+  await page.getByLabel("Target customer").fill("Wingtip");
+  await page.getByLabel("Target IdP").selectOption("okta");
+  await page.getByLabel("Deadline").fill("2026-05-20");
+  await page.getByLabel("Claimed features").fill("sp-initiated-sso, auditability");
+  await Promise.all([
+    page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
+    page.getByRole("button", { name: "Create engagement" }).click(),
+  ]);
+  const secondEngagementUrl = page.url();
+
+  await page.getByLabel("Name").fill("Northwind IAM");
+  await page.getByLabel("Email").fill(returningCustomerEmail);
+  await page.getByRole("button", { name: "Create invite" }).click();
+  await expect(page).toHaveURL(secondEngagementUrl);
+  await expect(page).not.toHaveURL(/inviteUrl=|inviteNotice=|inviteError=/);
+  const secondInviteLink = await page.locator(".break-anywhere").last().textContent();
+  expect(secondInviteLink).toBeTruthy();
+
+  await customerPage.goto(secondInviteLink || "/");
+  await expect(customerPage.getByRole("button", { name: "Claim access" })).toBeVisible();
+  await Promise.all([
+    customerPage.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
+    customerPage.getByRole("button", { name: "Claim access" }).click(),
+  ]);
+  await expect(customerPage).toHaveURL(/\/app\/engagements\/eng_[^/]+$/);
+  await expect(customerPage.getByText("Customer view")).toBeVisible();
+  await customerContext.close();
+});
+
+test("a passing retest resolves the seeded open finding", async ({ page }) => {
+  await signInAsFounder(page);
+  await page.goto("/app");
+  await Promise.all([
+    page.waitForURL(/\/app\/engagements\/eng_[^/]+$/),
+    page.getByRole("link", { name: /Acme SaaS <> Northwind Financial Deal Rescue/i }).click(),
+  ]);
+
+  await page.getByRole("button", { name: "Generate test plan" }).click();
+  await expect(page.getByRole("heading", { name: /Retest \d+ entra readiness plan/i })).toBeVisible();
+
+  const scenarioCard = page
+    .locator(".list-item")
+    .filter({ has: page.locator("strong", { hasText: /Group/i }) })
+    .first();
+
+  await scenarioCard.getByLabel("Outcome").selectOption("passed");
+  await scenarioCard
+    .getByLabel("Reviewer notes")
+    .fill("Confirmed on retest that the admin group now maps correctly.");
+  await scenarioCard.getByRole("button", { name: "Save scenario review" }).click();
+
+  await expect(page.getByText("No findings yet. Failed scenarios promote into structured remediation items.")).toBeVisible();
 });
