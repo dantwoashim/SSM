@@ -4,39 +4,11 @@ import {
   selectScenarios,
   type AssuranceJob,
 } from "@assurance/core";
-import { executeQueuedJob, recordWorkerHeartbeat } from "@assurance/service";
+import { executeQueuedJob, logError, logEvent, recordWorkerHeartbeat } from "@assurance/service";
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 
 const workerName = process.env.WORKER_NAME || `assurance-worker-${process.pid}`;
-
-function logEvent(level: "info" | "warn" | "error", event: string, data: Record<string, unknown> = {}) {
-  const payload = JSON.stringify({
-    level,
-    event,
-    timestamp: new Date().toISOString(),
-    ...data,
-  });
-
-  if (level === "error") {
-    console.error(payload);
-    return;
-  }
-
-  if (level === "warn") {
-    console.warn(payload);
-    return;
-  }
-
-  console.info(payload);
-}
-
-function logError(event: string, error: unknown, data: Record<string, unknown> = {}) {
-  logEvent("error", event, {
-    ...data,
-    error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
-  });
-}
 
 async function sendHeartbeat(status: "starting" | "running" | "stopped", metadata: Record<string, unknown> = {}) {
   await recordWorkerHeartbeat({
