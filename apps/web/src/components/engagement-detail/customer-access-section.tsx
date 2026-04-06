@@ -1,18 +1,25 @@
-import { createInviteAndRedirectAction } from "@/lib/actions/engagement-actions";
+"use client";
+
+import { useActionState } from "react";
+import { createInviteAction } from "@/lib/actions/engagement-actions";
 import { formatDate } from "@/lib/format";
 import { SubmitButton } from "@/components/submit-button";
 
 export function CustomerAccessSection({
   founderView,
   engagementId,
-  inviteFlash,
   openInvites,
 }: {
   founderView: boolean;
   engagementId: string;
-  inviteFlash: { inviteUrl: string; notice: string; error: string } | null;
   openInvites: Array<{ id: string; name: string; email: string; createdAt: string }>;
 }) {
+  const [inviteState, inviteAction] = useActionState(createInviteAction, {
+    inviteUrl: "",
+    error: "",
+    deliveryMessage: "",
+  });
+
   if (!founderView) {
     return (
       <section className="detail-section">
@@ -27,7 +34,7 @@ export function CustomerAccessSection({
   return (
     <section className="detail-section">
       <h3>Customer access</h3>
-      <form action={createInviteAndRedirectAction} className="form-fields">
+      <form action={inviteAction} className="form-fields">
         <input type="hidden" name="engagementId" value={engagementId} />
         <div className="field-grid">
           <div className="field">
@@ -43,16 +50,16 @@ export function CustomerAccessSection({
           Create invite
         </SubmitButton>
       </form>
-      {inviteFlash?.error ? (
-        <p className="error-message">{inviteFlash.error}</p>
+      {inviteState.error ? (
+        <p className="error-message">{inviteState.error}</p>
       ) : null}
-      {inviteFlash?.notice ? (
-        <p className="muted">{inviteFlash.notice}</p>
+      {inviteState.deliveryMessage ? (
+        <p className="muted">{inviteState.deliveryMessage}</p>
       ) : null}
-      {inviteFlash?.inviteUrl ? (
+      {inviteState.inviteUrl ? (
         <div className="mt-md">
           <strong>Invite link</strong>
-          <p className="muted break-anywhere">{inviteFlash.inviteUrl}</p>
+          <p className="muted break-anywhere">{inviteState.inviteUrl}</p>
         </div>
       ) : null}
       {openInvites.length > 0 ? (

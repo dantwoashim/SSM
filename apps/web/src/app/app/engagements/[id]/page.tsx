@@ -6,7 +6,6 @@ import {
   listOpenInvitesForEngagement,
   listScenariosForRun,
 } from "@/lib/data";
-import { readEngagementFlashCookie } from "@/lib/engagement-flash";
 import { getCurrentSession } from "@/lib/session";
 import { ArtifactsSection } from "@/components/engagement-detail/artifacts-section";
 import { CustomerAccessSection } from "@/components/engagement-detail/customer-access-section";
@@ -73,7 +72,6 @@ export default async function EngagementDetailPage({
   const jobRows: JobRunView[] = detail.jobRows;
   const openInvites =
     founderView ? await listOpenInvitesForEngagement(detail.engagement.id) : [];
-  const inviteFlash = founderView ? await readEngagementFlashCookie(detail.engagement.id) : null;
 
   return (
     <div className="detail-grid">
@@ -108,7 +106,6 @@ export default async function EngagementDetailPage({
       <CustomerAccessSection
         founderView={founderView}
         engagementId={detail.engagement.id}
-        inviteFlash={inviteFlash}
         openInvites={openInvites}
       />
     </div>
