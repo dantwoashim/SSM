@@ -62,3 +62,4 @@ If you are running the app on your own machine:
 - keep regular backups
 - use a stable public URL if you are sharing it with customers
 - treat email and storage failures as operational incidents, not minor warnings
+- read report publication blockers before you force a warning-acknowledged publish
