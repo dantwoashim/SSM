@@ -166,6 +166,14 @@ describe("validation helpers", () => {
     expect(() => validateAttachmentUpload(tooLarge)).toThrow(ActionValidationError);
   });
 
+  it("rejects zip uploads until archive inspection exists", () => {
+    const zipFile = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], "bundle.zip", {
+      type: "application/zip",
+    });
+
+    expect(() => validateAttachmentUpload(zipFile)).toThrow(ActionValidationError);
+  });
+
   it("rejects files whose bytes do not match the declared type", () => {
     expect(() =>
       validateAttachmentContent(
