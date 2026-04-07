@@ -5,7 +5,8 @@ import {
   type ReportSnapshot,
   scenarioLibrary,
 } from "@assurance/core";
-import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { getEngagementDetail } from "./engagements";
@@ -18,6 +19,7 @@ import {
   scenarioRuns as scenarioRunsTable,
 } from "./schema";
 import { assertEngagementTransition, assertReportTransition } from "./workflow";
+import { buildProviderValidationSummary } from "../provider-adapters";
 
 function slugifyScenarioTitle(title: string) {
   return title
@@ -36,12 +38,32 @@ function buildCurrentFindingKey(row: Pick<typeof scenarioRunsTable.$inferSelect,
   return `${row.protocol}:${row.scenarioId}:${slugifyScenarioTitle(row.title || row.scenarioId)}`;
 }
 
+function buildEvidenceHash(rows: Array<typeof attachments.$inferSelect>) {
+  const fingerprint = rows
+    .filter((row) => !row.deletedAt)
+    .map((row) =>
+      [
+        row.id,
+        row.storageKey,
+        row.checksumSha256 || "",
+        row.scanStatus,
+        row.trustLevel,
+        row.createdAt,
+      ].join(":"),
+    )
+    .sort()
+    .join("|");
+
+  return createHash("sha256").update(fingerprint).digest("hex");
+}
+
 function buildReportSnapshot(input: {
   engagement: typeof engagements.$inferSelect;
   scenarioRows: Array<typeof scenarioRunsTable.$inferSelect>;
   findingRows: Array<typeof findingsTable.$inferSelect>;
   attachmentRows: Array<typeof attachments.$inferSelect>;
 }): ReportSnapshot {
+  const providerValidation = buildProviderValidationSummary(input.engagement);
   const scenarios = input.scenarioRows.map((row) => {
     const definition = scenarioLibrary.find((scenario) => scenario.id === row.scenarioId);
     const linkedAttachmentCount = input.attachmentRows.filter(
@@ -96,6 +118,7 @@ function buildReportSnapshot(input: {
         "Validation covers the scoped environment, declared scenarios, and evidence captured during the current review cycle.",
       assuranceMethod:
         "This report is based on reviewer-managed scenario execution and collected evidence. The application preserves scope, auditability, and publication gates, but tenant-specific verification remains operator-run.",
+      providerValidation,
       readinessScore: 0,
       totalScenarios: scenarios.length,
       executedScenarios,
@@ -117,6 +140,12 @@ function buildReportSnapshot(input: {
   };
 
   snapshot.summary.publication = buildPublicationAssessment(snapshot);
+  if (providerValidation.adapterStatus === "unsupported") {
+    snapshot.summary.publication.blockingReasons.push(
+      "Requested provider features exceed the current scenario coverage for this provider.",
+    );
+    snapshot.summary.publication.canPublish = false;
+  }
   snapshot.summary.executiveSummary = formatExecutiveSummary(snapshot);
   snapshot.summary.readinessScore = computeReadinessScore(snapshot);
   return snapshot;
@@ -133,48 +162,85 @@ export function validateReportPublication(snapshot: ReportSnapshot, acknowledged
 }
 
 export async function generateReport(engagementId: string, actorName: string) {
-  const db = await getDb();
   const detail = await getEngagementDetail(engagementId);
 
   if (!detail) {
     throw new Error("Engagement not found.");
   }
 
-  const snapshot = buildReportSnapshot({
-    engagement: detail.engagement,
-    scenarioRows: detail.scenarioRows,
-    findingRows: detail.findingRows,
-    attachmentRows: detail.attachmentRows,
-  });
-  const version = (detail.reportRows[0]?.version || 0) + 1;
-  const report = {
-    id: makeId("report"),
-    engagementId,
-    version,
-    status: "draft",
-    executiveSummary: snapshot.summary.executiveSummary,
-    residualRisk: snapshot.summary.residualRisk,
-    scopeBoundaries: snapshot.summary.scopeBoundaries,
-    readinessScore: snapshot.summary.readinessScore,
-    reportJson: snapshot,
-    createdAt: now(),
-    publishedAt: null,
-  };
+  return runInTransaction(async (db) => {
+    const basisRunId = detail.latestRun?.id || null;
+    if (basisRunId) {
+      const [existingDraft] = await db
+        .select()
+        .from(reports)
+        .where(and(eq(reports.engagementId, engagementId), eq(reports.basisRunId, basisRunId), eq(reports.status, "draft")))
+        .limit(1);
 
-  await db.insert(reports).values(report);
-  assertEngagementTransition(detail.engagement.status, "report-drafting");
-  await db
-    .update(engagements)
-    .set({
-      status: "report-drafting",
-      updatedAt: now(),
-    })
-    .where(eq(engagements.id, engagementId));
-  await audit(actorName, "generated_report", "report", report.id, {
-    engagementId,
-    version,
+      if (existingDraft) {
+        return existingDraft;
+      }
+    }
+
+    const snapshot = buildReportSnapshot({
+      engagement: detail.engagement,
+      scenarioRows: detail.scenarioRows,
+      findingRows: detail.findingRows,
+      attachmentRows: detail.attachmentRows,
+    });
+    const version = (detail.reportRows[0]?.version || 0) + 1;
+    const timestamp = now();
+    const report = {
+      id: makeId("report"),
+      engagementId,
+      version,
+      basisRunId,
+      basisEvidenceHash: buildEvidenceHash(detail.attachmentRows),
+      status: "draft" as const,
+      executiveSummary: snapshot.summary.executiveSummary,
+      residualRisk: snapshot.summary.residualRisk,
+      scopeBoundaries: snapshot.summary.scopeBoundaries,
+      readinessScore: snapshot.summary.readinessScore,
+      reportJson: snapshot,
+      createdAt: timestamp,
+      publishedAt: null,
+    };
+
+    try {
+      await db.insert(reports).values(report);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (basisRunId && /reports_engagement_basis_draft_idx|duplicate|unique/i.test(message)) {
+        const [existingDraft] = await db
+          .select()
+          .from(reports)
+          .where(and(eq(reports.engagementId, engagementId), eq(reports.basisRunId, basisRunId), eq(reports.status, "draft")))
+          .limit(1);
+
+        if (existingDraft) {
+          return existingDraft;
+        }
+      }
+
+      throw error;
+    }
+
+    assertEngagementTransition(detail.engagement.status, "report-drafting");
+    await db
+      .update(engagements)
+      .set({
+        status: "report-drafting",
+        updatedAt: timestamp,
+      })
+      .where(eq(engagements.id, engagementId));
+    await audit(actorName, "generated_report", "report", report.id, {
+      engagementId,
+      version,
+      basisRunId,
+      basisEvidenceHash: report.basisEvidenceHash,
+    }, db);
+    return report;
   });
-  return report;
 }
 
 export async function publishReport(reportId: string, actorName: string, acknowledgedWarnings = false) {
