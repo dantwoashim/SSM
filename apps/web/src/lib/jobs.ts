@@ -13,11 +13,15 @@ async function processInline(job: AssuranceJob) {
 }
 
 export async function dispatchJob(job: DispatchableAssuranceJob) {
-  const jobRun = await createJobRun({
+  const idempotencyKey = job.name === "notification.send"
+    ? `${job.name}:${job.data.notificationId}`
+    : `${job.name}:${job.data.engagementId || "global"}`;
+  const { jobRun, created } = await createJobRun({
     engagementId: job.data.engagementId || null,
     name: job.name,
     actorName: job.data.actorName,
     payload: job.data,
+    idempotencyKey,
   });
   const enrichedJob = {
     ...job,
@@ -28,6 +32,14 @@ export async function dispatchJob(job: DispatchableAssuranceJob) {
   } as AssuranceJob;
 
   if (!env.redisUrl) {
+    if (!created && jobRun.status === "running") {
+      return {
+        mode: "inline",
+        reused: true,
+        engagementId: job.data.engagementId || null,
+      } as const;
+    }
+
     try {
       return await processInline(enrichedJob);
     } catch (error) {
@@ -46,7 +58,16 @@ export async function dispatchJob(job: DispatchableAssuranceJob) {
   }
 
   try {
+    if (!created) {
+      return {
+        mode: "queue" as const,
+        queueId: jobRun.queueId,
+        reused: true,
+      };
+    }
+
     const queued = await queue.add(enrichedJob.name, enrichedJob.data, {
+      jobId: idempotencyKey,
       attempts: 3,
       backoff: {
         type: "exponential",
