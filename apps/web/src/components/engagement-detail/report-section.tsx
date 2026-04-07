@@ -22,8 +22,11 @@ export function ReportSection({
         status: string;
         reportJson: {
           summary: {
+            assuranceMethod: string;
             totalScenarios: number;
             executedScenarios: number;
+            manualScenarios: number;
+            guidedScenarios: number;
             publication: {
               canPublish: boolean;
               requiresAcknowledgement: boolean;
@@ -65,6 +68,16 @@ export function ReportSection({
               </span>
               <span className="metric-label">Coverage</span>
             </div>
+            <div className="metric">
+              <span className="metric-value">
+                {latestReport.reportJson.summary.manualScenarios}/{latestReport.reportJson.summary.guidedScenarios}
+              </span>
+              <span className="metric-label">Manual / guided</span>
+            </div>
+          </div>
+          <div className="callout mt-md">
+            <strong>Assurance method</strong>
+            <p className="mt-sm">{latestReport.reportJson.summary.assuranceMethod}</p>
           </div>
           {latestReport.reportJson.summary.publication.blockingReasons.length > 0 ? (
             <div className="callout mt-md">
