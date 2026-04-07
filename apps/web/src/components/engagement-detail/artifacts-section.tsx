@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { uploadAttachmentStateAction } from "@/lib/actions/engagement-actions";
+import { deleteAttachmentAction, uploadAttachmentStateAction } from "@/lib/actions/engagement-actions";
 import { formatDate } from "@/lib/format";
 import { SubmitButton } from "@/components/submit-button";
 import type { AttachmentView, FindingView, ScenarioReview } from "./types";
@@ -106,11 +106,27 @@ export function ArtifactsSection({
               <strong>{attachment.fileName}</strong>
               <span className="activity-meta">
                 {attachment.visibility} / {attachment.size} bytes / {formatDate(attachment.createdAt)}
+                {` / ${attachment.scanStatus}`}
+                {` / ${attachment.trustLevel}`}
+                {attachment.retentionUntil ? ` / retain until ${formatDate(attachment.retentionUntil)}` : ""}
                 {attachment.scenarioRunId ? " / linked scenario" : ""}
                 {attachment.findingId ? " / linked finding" : ""}
                 {attachment.reportId ? " / linked report" : ""}
               </span>
-              <Link href={`/api/attachments/${attachment.id}`}>Download</Link>
+              {attachment.scanSummary ? <p className="list-item-body">{attachment.scanSummary}</p> : null}
+              <div className="actions mt-sm">
+                <Link href={`/api/attachments/${attachment.id}`}>Download</Link>
+                {founderView ? (
+                  <form action={deleteAttachmentAction}>
+                    <input type="hidden" name="attachmentId" value={attachment.id} />
+                    <input type="hidden" name="engagementId" value={engagementId} />
+                    <input type="hidden" name="reason" value="Removed by founder from the engagement portal." />
+                    <SubmitButton className="button-secondary" pendingLabel="Deleting...">
+                      Delete
+                    </SubmitButton>
+                  </form>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
