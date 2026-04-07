@@ -21,6 +21,7 @@ import {
   testRuns,
 } from "./schema";
 import { AttachmentLinkageError } from "../errors";
+import { assertEngagementTransition, assertTestRunTransition } from "./workflow";
 
 const manualScenarioPrefix = "manual:";
 
@@ -358,10 +359,12 @@ export async function generateTestPlan(engagementId: string, actorName: string) 
       );
     }
 
+    const nextEngagementStatus = priorRuns.length === 0 ? "in-progress" : "retest";
+    assertEngagementTransition(engagement.status, nextEngagementStatus);
     await db
       .update(engagements)
       .set({
-        status: priorRuns.length === 0 ? "in-progress" : "retest",
+        status: nextEngagementStatus,
         updatedAt: timestamp,
       })
       .where(eq(engagements.id, engagementId));
@@ -447,6 +450,7 @@ export async function addManualScenario(input: {
 
     await db.insert(scenarioRuns).values(scenarioRun);
     const mergedScenarioIds = Array.from(new Set([...(run.scenarioIds || []), scenarioId]));
+    assertTestRunTransition(run.status, "running");
     await db
       .update(testRuns)
       .set({
@@ -455,10 +459,12 @@ export async function addManualScenario(input: {
         completedAt: null,
       })
       .where(eq(testRuns.id, run.id));
+    const nextEngagementStatus = runs[0] ? "retest" : "in-progress";
+    assertEngagementTransition(engagement.status, nextEngagementStatus);
     await db
       .update(engagements)
       .set({
-        status: runs[0] ? "retest" : "in-progress",
+        status: nextEngagementStatus,
         updatedAt: timestamp,
       })
       .where(eq(engagements.id, input.engagementId));
@@ -621,10 +627,12 @@ export async function updateScenarioRunResult(input: {
       .from(scenarioRuns)
       .where(eq(scenarioRuns.testRunId, testRun.id));
     const outstandingCount = updatedScenarioRuns.filter((row) => row.outcome === "pending").length;
+    const nextTestRunStatus = outstandingCount > 0 ? "running" : "completed";
+    assertTestRunTransition(testRun.status, nextTestRunStatus);
     await db
       .update(testRuns)
       .set({
-        status: outstandingCount > 0 ? "running" : "completed",
+        status: nextTestRunStatus,
         completedAt: outstandingCount > 0 ? null : timestamp,
       })
       .where(eq(testRuns.id, testRun.id));
