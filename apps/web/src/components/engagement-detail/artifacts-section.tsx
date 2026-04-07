@@ -49,8 +49,10 @@ export function ArtifactsSection({
             id="file"
             name="file"
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,.zip,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/csv,application/json,application/zip"
+            required
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,application/pdf,image/png,image/jpeg,image/webp,text/plain,text/csv,application/json"
           />
+          <p className="muted">PDF, image, text, CSV, and JSON evidence only. Archive uploads stay blocked until recursive inspection is in place.</p>
         </div>
         {founderView ? (
           <div className="field-grid">
