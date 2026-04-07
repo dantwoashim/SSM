@@ -13,6 +13,11 @@ export function OverviewSection({
     targetCustomer: string;
     deadline: string | null;
     claimedFeatures: string[];
+    providerValidation: {
+      adapterStatus: string;
+      supportStatement: string;
+      warnings: string[];
+    };
   };
   founderView: boolean;
 }) {
@@ -39,6 +44,17 @@ export function OverviewSection({
             {feature}
           </span>
         ))}
+      </div>
+      <div className="callout mt-md">
+        <strong>Provider validation</strong>
+        <p className="mt-sm">{engagement.providerValidation.supportStatement}</p>
+        {engagement.providerValidation.warnings.length > 0 ? (
+          <ul className="mt-sm">
+            {engagement.providerValidation.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       {founderView ? (
         <div className="actions mt-lg">
