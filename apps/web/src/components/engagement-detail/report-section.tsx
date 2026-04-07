@@ -23,6 +23,11 @@ export function ReportSection({
         reportJson: {
           summary: {
             assuranceMethod: string;
+            providerValidation: {
+              adapterStatus: string;
+              supportStatement: string;
+              warnings: string[];
+            };
             totalScenarios: number;
             executedScenarios: number;
             manualScenarios: number;
@@ -78,6 +83,17 @@ export function ReportSection({
           <div className="callout mt-md">
             <strong>Assurance method</strong>
             <p className="mt-sm">{latestReport.reportJson.summary.assuranceMethod}</p>
+          </div>
+          <div className="callout mt-md">
+            <strong>Provider validation</strong>
+            <p className="mt-sm">{latestReport.reportJson.summary.providerValidation.supportStatement}</p>
+            {latestReport.reportJson.summary.providerValidation.warnings.length > 0 ? (
+              <ul className="mt-sm">
+                {latestReport.reportJson.summary.providerValidation.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           {latestReport.reportJson.summary.publication.blockingReasons.length > 0 ? (
             <div className="callout mt-md">
