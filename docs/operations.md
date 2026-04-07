@@ -29,6 +29,7 @@ Run the full verification stack before changing the deployment or sharing a new 
 
 ```powershell
 npm run verify
+npm run package:source
 ```
 
 If you are planning to ship the Docker image or rely on the hosted deployment path, run this too:
