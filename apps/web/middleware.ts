@@ -47,6 +47,9 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(response, nonce, requestId);
   }
 
+  // Keep middleware as a fast presence gate only. Full revocation and
+  // session-version enforcement happens in the server-side auth path via
+  // getCurrentSession()/readSessionCookie() inside app layout, actions, and APIs.
   const session = await readSessionTokenPayload(request.cookies.get("assurance_session")?.value);
 
   if (!session) {
