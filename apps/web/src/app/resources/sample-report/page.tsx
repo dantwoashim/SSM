@@ -15,6 +15,9 @@ export default function SampleReportPage() {
         <div className="callout mb-lg">
           Demo data. This page is a redacted sample built from seeded example records, not a live customer packet.
         </div>
+        <div className="callout mb-lg">
+          This format is explicit about method. It is built from reviewer-managed scenario execution and collected evidence, not from a fully autonomous SAML or SCIM verification engine.
+        </div>
         <div className="layout-two">
           <div>
             <h3>Executive summary</h3>
@@ -55,6 +58,10 @@ export default function SampleReportPage() {
             </ul>
           </div>
         </div>
+      </section>
+      <section className="content-section">
+        <h3>Assurance method</h3>
+        <p className="mt-sm">{sampleReportSnapshot.summary.assuranceMethod}</p>
       </section>
       <section className="content-section">
         <h3>Markdown export preview</h3>
