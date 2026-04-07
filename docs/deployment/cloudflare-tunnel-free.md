@@ -51,7 +51,7 @@ Leave these empty in this setup:
 
 ```powershell
 cd d:\SSM
-npm install
+npm ci
 ```
 
 4. Start the production app locally:
