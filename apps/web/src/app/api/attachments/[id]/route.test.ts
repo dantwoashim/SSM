@@ -39,6 +39,9 @@ describe("/api/attachments/[id]", () => {
       engagementId: "eng_123",
       visibility: "shared",
       storageKey: "eng_123/evidence.txt",
+      storageStatus: "stored",
+      scanStatus: "clean",
+      deletedAt: null,
       contentType: "text/plain",
       fileName: "evidence.txt",
     });
@@ -82,6 +85,9 @@ describe("/api/attachments/[id]", () => {
       engagementId: "eng_123",
       visibility: "internal",
       storageKey: "eng_123/internal.txt",
+      storageStatus: "stored",
+      scanStatus: "clean",
+      deletedAt: null,
       contentType: "text/plain",
       fileName: "internal.txt",
     });
@@ -94,5 +100,53 @@ describe("/api/attachments/[id]", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: "Internal artifacts are founder-only",
     });
+  });
+
+  it("blocks customer downloads for artifacts still under internal review", async () => {
+    getCurrentSession.mockResolvedValue({
+      sub: "user_456",
+      role: "customer",
+      name: "Customer",
+    });
+    findAttachmentById.mockResolvedValue({
+      id: "attach_123",
+      engagementId: "eng_123",
+      visibility: "shared",
+      storageKey: "eng_123/review.csv",
+      storageStatus: "stored",
+      scanStatus: "manual-review-required",
+      deletedAt: null,
+      contentType: "text/csv",
+      fileName: "review.csv",
+    });
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/attachments/attach_123"), {
+      params: Promise.resolve({ id: "attach_123" }),
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "This artifact requires internal review before it can be shared with customer contacts.",
+    });
+  });
+
+  it("returns 404 for deleted artifacts", async () => {
+    findAttachmentById.mockResolvedValue({
+      id: "attach_123",
+      engagementId: "eng_123",
+      visibility: "shared",
+      storageKey: "eng_123/evidence.txt",
+      storageStatus: "deleted",
+      scanStatus: "clean",
+      deletedAt: "2026-04-07T00:00:00.000Z",
+      contentType: "text/plain",
+      fileName: "evidence.txt",
+    });
+    const { GET } = await import("./route");
+    const response = await GET(new Request("http://localhost/api/attachments/attach_123"), {
+      params: Promise.resolve({ id: "attach_123" }),
+    });
+
+    expect(response.status).toBe(404);
   });
 });
