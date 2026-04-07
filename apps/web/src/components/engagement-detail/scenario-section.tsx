@@ -20,6 +20,7 @@ export function ScenarioSection({
     id: string;
     title: string;
     protocol: string;
+    executionMode: string;
     outcome: string;
     customerSummary: string;
     evidenceCount: number;
@@ -39,7 +40,7 @@ export function ScenarioSection({
               <div key={row.id} className="activity-item">
                 <strong>{row.title}</strong>
                 <span className="activity-meta">
-                  {row.protocol} / {titleCase(row.outcome)}
+                  {row.protocol} / {row.executionMode} / {titleCase(row.outcome)}
                   {row.evidenceCount > 0 ? ` / ${row.evidenceCount} evidence` : ""}
                 </span>
                 <p className="list-item-body">{row.customerSummary}</p>
