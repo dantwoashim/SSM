@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { convertLeadAction } from "@/lib/actions/engagement-actions";
 import { SubmitButton } from "@/components/submit-button";
-import { ensureFounderUser, listPortalDataForUser } from "@/lib/data";
+import { listPortalDataForUser } from "@/lib/data";
 import { formatDate, titleCase } from "@/lib/format";
+import { getRuntimeHealthSummary } from "../../lib/runtime-health";
 import { getCurrentSession } from "@/lib/session";
 
 type DashboardEngagement = {
@@ -47,14 +48,11 @@ export default async function DashboardPage() {
     return null;
   }
 
-  if (session.role === "founder") {
-    await ensureFounderUser();
-  }
-
   const dashboard = await listPortalDataForUser({
     userId: session.sub,
     role: session.role,
   });
+  const runtimeHealth = session.role === "founder" ? await getRuntimeHealthSummary().catch(() => null) : null;
   const engagementRows: DashboardEngagement[] = dashboard.engagements;
   const leadRows: DashboardLead[] = dashboard.leads;
   const recentJobRuns: DashboardJobRun[] = dashboard.recentJobRuns;
@@ -62,6 +60,16 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {session.role === "founder" && runtimeHealth && (!runtimeHealth.ok || runtimeHealth.warnings.length > 0) ? (
+        <div className="callout mb-lg">
+          <strong>Operational attention needed</strong>
+          <ul className="mt-sm">
+            {runtimeHealth.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {/* Metrics Row */}
       <div className="metrics-row">
         <div className="metric">
