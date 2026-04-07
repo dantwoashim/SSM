@@ -27,7 +27,7 @@ try {
     body,
     "text/plain",
   );
-  const download = await provider.getArtifactDownload("smoke/evidence.txt", "text/plain");
+  const download = await provider.getArtifactDownload("smoke/evidence.txt", "text/plain", "evidence.txt");
 
   if (download.type !== "file") {
     throw new Error("Storage smoke expected a local file download result.");
