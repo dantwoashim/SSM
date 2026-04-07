@@ -27,6 +27,11 @@ export default async function PortalLayout({
             Dashboard
           </Link>
           {session.role === "founder" ? (
+            <Link className="button-secondary" href="/app/ops">
+              Operations
+            </Link>
+          ) : null}
+          {session.role === "founder" ? (
             <Link className="button-secondary" href="/app/engagements/new">
               New engagement
             </Link>
