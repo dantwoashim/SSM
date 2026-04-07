@@ -38,11 +38,16 @@ export type AttachmentView = {
   id: string;
   fileName: string;
   visibility: string;
+  scanStatus: string;
+  scanSummary: string | null;
+  trustLevel: string;
   size: number;
   createdAt: string;
+  retentionUntil: string | null;
   scenarioRunId: string | null;
   findingId: string | null;
   reportId: string | null;
+  storageKey: string;
 };
 
 export type JobRunView = {
