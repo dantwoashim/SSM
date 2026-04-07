@@ -15,6 +15,7 @@
 
 - Engagement data is scoped to a named company and target customer
 - Evidence artifacts should be uploaded only to scoped engagement records
+- Artifacts that trigger lightweight safety heuristics are marked for internal review and are not downloadable by customer contacts until cleared
 - Reports are generated from structured findings and can be exported as PDFs
 - Customer-visible findings and report output are intentionally separate from operator notes
 
