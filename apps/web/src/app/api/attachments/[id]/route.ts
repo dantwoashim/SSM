@@ -23,6 +23,10 @@ export async function GET(
     return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
   }
 
+  if (attachment.deletedAt || attachment.storageStatus === "deleted") {
+    return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
+  }
+
   const allowed = await hasEngagementAccess({
     userId: session.sub,
     role: session.role,
@@ -37,7 +41,15 @@ export async function GET(
     return NextResponse.json({ error: "Internal artifacts are founder-only" }, { status: 403 });
   }
 
-  const download = await getArtifactDownload(attachment.storageKey, attachment.contentType);
+  if (session.role !== "founder" && attachment.scanStatus !== "clean") {
+    return NextResponse.json(
+      { error: "This artifact requires internal review before it can be shared with customer contacts." },
+      { status: 403 },
+    );
+  }
+
+  const safeFileName = sanitizeAttachmentFileName(attachment.fileName);
+  const download = await getArtifactDownload(attachment.storageKey, attachment.contentType, safeFileName);
 
   if (download.type === "redirect") {
     await audit(session.name, "downloaded_attachment", "attachment", attachment.id, {
@@ -58,7 +70,7 @@ export async function GET(
     headers: {
       "Cache-Control": "private, no-store, max-age=0",
       "Content-Type": attachment.contentType,
-      "Content-Disposition": `attachment; filename="${sanitizeAttachmentFileName(attachment.fileName)}"`,
+      "Content-Disposition": download.contentDisposition || `attachment; filename="${safeFileName}"`,
     },
   });
 }
