@@ -43,7 +43,7 @@ From the outside, the workflow is simple.
 7. Publication is gated when execution coverage is incomplete or still needs explicit acknowledgment.
 8. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
 
-What it does not do is fake confidence. A half-reviewed rollout should not look like a clean go-live. The reporting path is designed to preserve that distinction.
+What it does not do is fake confidence. A half-reviewed rollout should not look like a clean go-live. The reporting path is designed to preserve that distinction, and the report carries explicit method language so the reader can see how the work was actually done.
 
 That is the whole point of the product. It should be possible to go from "the buyer needs proof this week" to a defensible package without juggling spreadsheets, screenshots, and email threads.
 
@@ -92,7 +92,7 @@ Requirements:
 Quick start:
 
 ```powershell
-npm install
+npm ci
 Copy-Item apps/web/.env.example apps/web/.env.local
 npm run seed
 npm run dev
@@ -116,6 +116,8 @@ If you want to understand the product quickly, do this:
 That path shows the product's center of gravity better than reading every route in the codebase. You will see the engagement model, the evidence model, the visibility boundaries, and the report output in a few minutes.
 
 If you are evaluating whether the product is honest, pause at the report section before you publish. The publication gate is one of the most important parts of the system.
+
+If you are evaluating whether the product is already a fully autonomous verification engine, it is not. The current strength of the system is structured manual assurance work with explicit scoping, evidence handling, and publication discipline.
 
 ## Environment model
 
@@ -154,6 +156,7 @@ npm run test
 npm run test:e2e
 npm run build
 npm run smoke:docker
+npm run package:source
 npm run worker
 ```
 
@@ -178,7 +181,11 @@ When uptime matters more than thrift, the codebase already supports the usual up
 
 No redesign is required to make that move. The workflow stays the same.
 
-For the hosted path, the repository now includes two separate credibility checks: `npm run verify` for the source tree and `npm run smoke:docker` for the packaged container image.
+For the hosted path, the repository now includes three separate credibility checks:
+
+- `npm run verify` for the source tree
+- `npm run smoke:docker` for the packaged container image
+- `npm run package:source` for the clean source bundle built from tracked files only
 
 ## What to look at if you are evaluating the implementation
 
