@@ -18,6 +18,7 @@ export {
   getEngagementDetail,
   listScenariosForRun,
   registerAttachment,
+  softDeleteAttachment,
   updateScenarioRunResult,
 } from "./data/engagements";
 export {
@@ -28,6 +29,7 @@ export {
 } from "./data/invites";
 export { createJobRun, markJobCompleted, markJobFailed, markJobQueued, markJobRunning } from "./data/jobs";
 export { createLead } from "./data/leads";
+export { getOperationsSnapshot } from "./data/ops";
 export {
   emailDeliveryConfigured,
   getNotificationById,
@@ -40,6 +42,7 @@ export { findAttachmentById, findReportById, generateReport, publishReport } fro
 export { authenticateUser, ensureFounderUser, getUserByEmail } from "./data/users";
 export { getLatestWorkerHeartbeat, recordWorkerHeartbeat } from "./data/worker-heartbeats";
 export { env, isLocalProdMode, isProductionLike } from "./env";
+export { buildProviderValidationSummary } from "./provider-adapters";
 export {
   ArtifactStorageError,
   InviteAccountMismatchError,
