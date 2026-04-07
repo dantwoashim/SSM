@@ -9,6 +9,7 @@ export {
   createInvite,
   createLead,
   createJobRun,
+  buildProviderValidationSummary,
   ensureFounderUser,
   enforceRateLimit,
   findAttachmentById,
@@ -18,6 +19,7 @@ export {
   getEngagementDetail,
   getInviteAcceptanceState,
   getInviteByToken,
+  getOperationsSnapshot,
   getLatestWorkerHeartbeat,
   hasEngagementAccess,
   listCustomerRecipientsForEngagement,
@@ -30,5 +32,6 @@ export {
   publishReport,
   registerAttachment,
   seedDemoData,
+  softDeleteAttachment,
   updateScenarioRunResult,
 } from "@assurance/service";
