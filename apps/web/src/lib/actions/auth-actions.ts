@@ -19,8 +19,10 @@ export async function loginAction(formData: FormData) {
     });
     const parsed = parseLoginForm(formData);
     let user = await authenticateUser(parsed.email, parsed.password);
+    const bootstrapFounderOnDemand =
+      process.env.NODE_ENV !== "production" || env.allowLocalProd === "1";
 
-    if (!user && parsed.email === env.founderEmail.toLowerCase()) {
+    if (!user && bootstrapFounderOnDemand && parsed.email === env.founderEmail.toLowerCase()) {
       await ensureFounderUser();
       user = await authenticateUser(parsed.email, parsed.password);
     }
@@ -61,13 +63,14 @@ export async function logoutAction() {
 }
 
 export async function loginAndRedirectAction(formData: FormData) {
+  const parsed = parseLoginForm(formData);
   const result = await loginAction(formData);
 
   if (result.ok) {
-    redirect((await parseLoginForm(formData)).redirectTo || "/app");
+    redirect(parsed.redirectTo || "/app");
   }
 
-  const redirectTo = (await parseLoginForm(formData)).redirectTo;
+  const redirectTo = parsed.redirectTo;
   const params = new URLSearchParams({
     error: result.error || "Unable to sign in.",
   });
