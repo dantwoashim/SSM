@@ -506,7 +506,7 @@ describe("service integration", () => {
         actorName: founder.name,
       });
 
-      const jobRun = await service.createJobRun({
+      const { jobRun } = await service.createJobRun({
         engagementId: engagement.id,
         name: "test-plan.generate",
         actorName: founder.name,
