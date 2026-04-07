@@ -64,6 +64,17 @@ export default function SampleReportPage() {
         <p className="mt-sm">{sampleReportSnapshot.summary.assuranceMethod}</p>
       </section>
       <section className="content-section">
+        <h3>Provider validation</h3>
+        <p className="mt-sm">{sampleReportSnapshot.summary.providerValidation.supportStatement}</p>
+        {sampleReportSnapshot.summary.providerValidation.warnings.length > 0 ? (
+          <ul className="clean-list mt-sm">
+            {sampleReportSnapshot.summary.providerValidation.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+      <section className="content-section">
         <h3>Markdown export preview</h3>
         <pre className="code-block-preview">
           {toMarkdown(sampleReportSnapshot)}
