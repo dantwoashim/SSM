@@ -24,4 +24,10 @@
 - SOC 2 preparation deferred until initial revenue
 - No public claim of certification, attestation, or third-party audit
 
+## Secret handling expectations
+
+- Treat `apps/web/.env.local` as machine-local only
+- Rotate founder credentials and `SESSION_SECRET` before any public launch
+- Use the clean source bundle from `npm run package:source` when sharing the codebase outside the working machine
+
 Operational expectations are documented in [docs/operations.md](../operations.md).
