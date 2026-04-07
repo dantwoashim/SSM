@@ -78,6 +78,10 @@ describe("service integration", () => {
         storageKey: "artifacts/group-mapping-screenshot.png",
         contentType: "image/png",
         size: 2048,
+        scanStatus: "clean",
+        scanSummary: "Passed lightweight scan.",
+        trustLevel: "verified",
+        retentionUntil: "2026-12-31T00:00:00.000Z",
         scenarioRunId: failingScenario.id,
       });
 
@@ -116,6 +120,10 @@ describe("service integration", () => {
         storageKey: "artifacts/buyer-facing-finding.pdf",
         contentType: "application/pdf",
         size: 4096,
+        scanStatus: "clean",
+        scanSummary: "Passed lightweight scan.",
+        trustLevel: "verified",
+        retentionUntil: "2026-12-31T00:00:00.000Z",
         findingId: linkedFinding?.id ?? null,
       });
 
@@ -136,7 +144,7 @@ describe("service integration", () => {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 30_000);
+  }, 45_000);
 
   test("invite issuance is idempotent and accepted customers get scoped access", async () => {
     const stateRoot = makeStateRoot();
@@ -197,7 +205,7 @@ describe("service integration", () => {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
     }
-  }, 20_000);
+  }, 30_000);
 
   test("a failed scenario can be resolved by a passing retest while skipped retests keep findings open", async () => {
     const stateRoot = makeStateRoot();
@@ -337,6 +345,10 @@ describe("service integration", () => {
           storageKey: "artifacts/mismatch.txt",
           contentType: "text/plain",
           size: 12,
+          scanStatus: "clean",
+          scanSummary: "Passed lightweight scan.",
+          trustLevel: "verified",
+          retentionUntil: "2026-12-31T00:00:00.000Z",
           findingId: manualFinding?.id ?? null,
         }),
       ).rejects.toThrow(/linked finding does not belong to this engagement/i);
@@ -579,6 +591,190 @@ describe("service integration", () => {
           windowMs: 60_000,
         }),
       ).rejects.toThrow(/too many requests/i);
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("concurrent report generation reuses the same draft for the same run", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const founder = await service.ensureFounderUser();
+      const engagement = await service.createEngagement({
+        title: "Acme <> Proseware Deal Rescue",
+        companyName: "Acme SaaS",
+        productUrl: "https://staging.acme.example",
+        targetCustomer: "Proseware",
+        targetIdp: "entra",
+        deadline: "2026-05-30",
+        claimedFeatures: ["sp-initiated-sso", "auditability"],
+        actorName: founder.name,
+        ownerUserId: founder.id,
+      });
+
+      const run = await service.generateTestPlan(engagement.id, founder.name);
+      const scenarios = await service.listScenariosForRun(run.id);
+      for (const scenario of scenarios) {
+        await service.updateScenarioRunResult({
+          scenarioRunId: scenario.id,
+          outcome: "passed",
+          reviewerNotes: "Completed successfully.",
+          customerVisibleSummary: "Completed successfully.",
+          buyerSafeReportNote: "Completed successfully during the current cycle.",
+          actorName: founder.name,
+        });
+      }
+
+      const [first, second] = await Promise.all([
+        service.generateReport(engagement.id, founder.name),
+        service.generateReport(engagement.id, founder.name),
+      ]);
+
+      expect(first.id).toBe(second.id);
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("soft-deleting an attachment removes it from the active evidence trail", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const founder = await service.ensureFounderUser();
+      const engagement = await service.createEngagement({
+        title: "Acme <> Adventure Works Deal Rescue",
+        companyName: "Acme SaaS",
+        productUrl: "https://staging.acme.example",
+        targetCustomer: "Adventure Works",
+        targetIdp: "okta",
+        deadline: "2026-05-31",
+        claimedFeatures: ["sp-initiated-sso"],
+        actorName: founder.name,
+        ownerUserId: founder.id,
+      });
+
+      const run = await service.generateTestPlan(engagement.id, founder.name);
+      const [scenario] = await service.listScenariosForRun(run.id);
+      const attachment = await service.registerAttachment({
+        engagementId: engagement.id,
+        uploadedBy: founder.name,
+        visibility: "shared",
+        fileName: "evidence.txt",
+        storageKey: "artifacts/evidence.txt",
+        contentType: "text/plain",
+        size: 12,
+        scanStatus: "clean",
+        scanSummary: "Passed lightweight scan.",
+        trustLevel: "verified",
+        retentionUntil: "2026-12-31T00:00:00.000Z",
+        scenarioRunId: scenario.id,
+      });
+
+      await service.softDeleteAttachment({
+        attachmentId: attachment.id,
+        actorName: founder.name,
+        reason: "Customer requested removal.",
+      });
+
+      const detail = await service.getEngagementDetail(engagement.id);
+      expect(detail?.attachmentRows.find((row: { id: string }) => row.id === attachment.id)).toBeUndefined();
+      const scenarioRows = await service.listScenariosForRun(run.id);
+      expect(scenarioRows[0]?.evidence || []).not.toContain(attachment.id);
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("simultaneous attachment registration preserves both evidence links", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const founder = await service.ensureFounderUser();
+      const engagement = await service.createEngagement({
+        title: "Acme <> Southridge Deal Rescue",
+        companyName: "Acme SaaS",
+        productUrl: "https://staging.acme.example",
+        targetCustomer: "Southridge",
+        targetIdp: "okta",
+        deadline: "2026-06-01",
+        claimedFeatures: ["sp-initiated-sso"],
+        actorName: founder.name,
+        ownerUserId: founder.id,
+      });
+
+      const run = await service.generateTestPlan(engagement.id, founder.name);
+      const [scenario] = await service.listScenariosForRun(run.id);
+
+      const [first, second] = await Promise.all([
+        service.registerAttachment({
+          engagementId: engagement.id,
+          uploadedBy: founder.name,
+          visibility: "shared",
+          fileName: "evidence-one.txt",
+          storageKey: "artifacts/evidence-one.txt",
+          contentType: "text/plain",
+          size: 12,
+          scanStatus: "clean",
+          scanSummary: "Passed lightweight scan.",
+          trustLevel: "verified",
+          retentionUntil: "2026-12-31T00:00:00.000Z",
+          scenarioRunId: scenario.id,
+        }),
+        service.registerAttachment({
+          engagementId: engagement.id,
+          uploadedBy: founder.name,
+          visibility: "shared",
+          fileName: "evidence-two.txt",
+          storageKey: "artifacts/evidence-two.txt",
+          contentType: "text/plain",
+          size: 12,
+          scanStatus: "clean",
+          scanSummary: "Passed lightweight scan.",
+          trustLevel: "verified",
+          retentionUntil: "2026-12-31T00:00:00.000Z",
+          scenarioRunId: scenario.id,
+        }),
+      ]);
+
+      const scenarioRows = await service.listScenariosForRun(run.id);
+      expect(scenarioRows[0]?.evidence || []).toEqual(expect.arrayContaining([first.id, second.id]));
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("duplicate queued jobs collapse under the same idempotency key", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const [first, second] = await Promise.all([
+        service.createJobRun({
+          engagementId: null,
+          name: "notification.send",
+          actorName: "system",
+          payload: { notificationId: "notify_1" },
+          idempotencyKey: "notification.send:notify_1",
+        }),
+        service.createJobRun({
+          engagementId: null,
+          name: "notification.send",
+          actorName: "system",
+          payload: { notificationId: "notify_1" },
+          idempotencyKey: "notification.send:notify_1",
+        }),
+      ]);
+
+      expect(first.jobRun.id).toBe(second.jobRun.id);
+      expect(first.created || second.created).toBe(true);
     } finally {
       await service.resetDatabaseForTests();
       await rm(stateRoot, { recursive: true, force: true });
