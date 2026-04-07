@@ -51,6 +51,13 @@ It fails when:
 
 In the founder portal, treat `manual_action_required` notifications as real work to clear, not cosmetic warnings. That state means the system preserved intent but could not complete delivery on its own.
 
+The founder portal now also includes an `Operations` view with:
+
+- failed jobs
+- queued notifications
+- artifacts that require manual review before customer sharing
+- worker heartbeat status
+
 ## Logs and request tracking
 
 Every response includes an `x-request-id` header generated in middleware. Keep that header when collecting failure details from the browser, reverse proxy, or application logs.
