@@ -12,6 +12,8 @@ import type {
 } from "@assurance/core";
 import type {
   AttachmentStorageStatus,
+  AttachmentScanStatus,
+  AttachmentTrustLevel,
   AttachmentVisibility,
   FindingStatus,
   JobRunStatus,
@@ -211,6 +213,10 @@ export const reports = pgTable("reports", {
     onDelete: "cascade",
   }),
   version: integer("version").notNull(),
+  basisRunId: text("basis_run_id").references(() => testRuns.id, {
+    onDelete: "set null",
+  }),
+  basisEvidenceHash: text("basis_evidence_hash"),
   status: text("status").$type<ReportStatus>().notNull(),
   executiveSummary: text("executive_summary").notNull(),
   residualRisk: text("residual_risk").notNull(),
@@ -232,31 +238,43 @@ export const messages = pgTable("messages", {
   createdAt: text("created_at").notNull(),
 });
 
-export const attachments = pgTable("attachments", {
-  id: text("id").primaryKey(),
-  engagementId: text("engagement_id").notNull().references(() => engagements.id, {
-    onDelete: "cascade",
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: text("id").primaryKey(),
+    engagementId: text("engagement_id").notNull().references(() => engagements.id, {
+      onDelete: "cascade",
+    }),
+    scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
+      onDelete: "set null",
+    }),
+    findingId: text("finding_id").references(() => findings.id, {
+      onDelete: "set null",
+    }),
+    reportId: text("report_id").references(() => reports.id, {
+      onDelete: "set null",
+    }),
+    uploadedBy: text("uploaded_by").notNull(),
+    visibility: text("visibility").$type<AttachmentVisibility>().notNull(),
+    fileName: text("file_name").notNull(),
+    storageKey: text("storage_key").notNull(),
+    checksumSha256: text("checksum_sha256"),
+    storageStatus: text("storage_status").$type<AttachmentStorageStatus>().notNull(),
+    scanStatus: text("scan_status").$type<AttachmentScanStatus>().notNull(),
+    scanSummary: text("scan_summary"),
+    trustLevel: text("trust_level").$type<AttachmentTrustLevel>().notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    createdAt: text("created_at").notNull(),
+    retentionUntil: text("retention_until"),
+    deletedAt: text("deleted_at"),
+    deletedReason: text("deleted_reason"),
+  },
+  (table) => ({
+    engagementCreatedIdx: index("attachments_engagement_created_idx").on(table.engagementId, table.createdAt),
+    scanStatusIdx: index("attachments_scan_status_idx").on(table.scanStatus, table.createdAt),
   }),
-  scenarioRunId: text("scenario_run_id").references(() => scenarioRuns.id, {
-    onDelete: "set null",
-  }),
-  findingId: text("finding_id").references(() => findings.id, {
-    onDelete: "set null",
-  }),
-  reportId: text("report_id").references(() => reports.id, {
-    onDelete: "set null",
-  }),
-  uploadedBy: text("uploaded_by").notNull(),
-  visibility: text("visibility").$type<AttachmentVisibility>().notNull(),
-  fileName: text("file_name").notNull(),
-  storageKey: text("storage_key").notNull(),
-  checksumSha256: text("checksum_sha256"),
-  storageStatus: text("storage_status").$type<AttachmentStorageStatus>().notNull(),
-  contentType: text("content_type").notNull(),
-  size: integer("size").notNull(),
-  createdAt: text("created_at").notNull(),
-  deletedAt: text("deleted_at"),
-});
+);
 
 export const requestLimits = pgTable("request_limits", {
   id: text("id").primaryKey(),
