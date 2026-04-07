@@ -38,6 +38,11 @@ function normalizeStorageKey(storageKey: string) {
   return normalized;
 }
 
+function buildDownloadDisposition(fileName?: string) {
+  const sanitized = (fileName || "artifact").replace(/["\r\n]+/g, "").trim() || "artifact";
+  return `attachment; filename="${sanitized}"`;
+}
+
 function resolveLocalPath(storageKey: string) {
   const normalizedKey = normalizeStorageKey(storageKey);
   const resolvedPath = path.resolve(localRoot, normalizedKey);
@@ -147,7 +152,7 @@ export async function deleteArtifact(storageKey: string) {
   await rm(outputPath, { force: true });
 }
 
-export async function getArtifactDownload(storageKey: string, contentType: string) {
+export async function getArtifactDownload(storageKey: string, contentType: string, fileName?: string) {
   if (isProductionLike() && !isLocalProdMode() && !hasS3Config()) {
     throw new ArtifactStorageError("S3-compatible artifact storage must be configured in production.");
   }
@@ -159,6 +164,8 @@ export async function getArtifactDownload(storageKey: string, contentType: strin
       new GetObjectCommand({
         Bucket: env.s3.bucket,
         Key: storageKey,
+        ResponseContentType: contentType,
+        ResponseContentDisposition: buildDownloadDisposition(fileName),
       }),
       { expiresIn: 300 },
     );
@@ -176,5 +183,6 @@ export async function getArtifactDownload(storageKey: string, contentType: strin
     type: "file" as const,
     body,
     contentType,
+    contentDisposition: buildDownloadDisposition(fileName),
   };
 }
