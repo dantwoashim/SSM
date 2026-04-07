@@ -21,6 +21,17 @@ const sharedEnv = {
   ASSURANCE_STATE_DIR: stateRoot,
 };
 
+if (sharedEnv.NODE_OPTIONS?.includes("--localstorage-file")) {
+  sharedEnv.NODE_OPTIONS = sharedEnv.NODE_OPTIONS
+    .split(/\s+/)
+    .filter((token) => token && !token.startsWith("--localstorage-file"))
+    .join(" ");
+
+  if (!sharedEnv.NODE_OPTIONS) {
+    delete sharedEnv.NODE_OPTIONS;
+  }
+}
+
 function run(command, args) {
   return new Promise((resolve, reject) => {
     const child = process.platform === "win32"
