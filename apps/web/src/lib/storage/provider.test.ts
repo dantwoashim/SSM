@@ -46,7 +46,7 @@ describe("artifact storage provider", () => {
         "text/plain",
       );
 
-      const download = await provider.getArtifactDownload("eng_123/sample-evidence.txt", "text/plain");
+      const download = await provider.getArtifactDownload("eng_123/sample-evidence.txt", "text/plain", "sample-evidence.txt");
       expect(download.type).toBe("file");
 
       if (download.type === "file") {
