@@ -76,6 +76,8 @@ export function formatExecutiveSummary(snapshot: ReportSnapshot): string {
   const blocking = snapshot.findings.filter((finding) => finding.severity === "blocks-go-live").length;
   const highRisk = snapshot.findings.filter((finding) => finding.severity === "high-risk").length;
   const passed = snapshot.scenarios.filter((scenario) => scenario.outcome === "passed").length;
+  const manual = snapshot.scenarios.filter((scenario) => scenario.executionMode === "manual").length;
+  const guided = snapshot.scenarios.filter((scenario) => scenario.executionMode === "guided").length;
   const executed = snapshot.scenarios.filter(
     (scenario) => scenario.outcome === "passed" || scenario.outcome === "failed",
   ).length;
@@ -85,6 +87,7 @@ export function formatExecutiveSummary(snapshot: ReportSnapshot): string {
   return [
     `${snapshot.companyName} was assessed for ${snapshot.targetCustomer} against ${snapshot.provider} enterprise identity rollout requirements.`,
     `${passed} of ${snapshot.scenarios.length} scoped scenarios passed, and ${executed} scenario(s) were fully executed in the current cycle.`,
+    `Execution coverage in this cycle is reviewer-managed: ${manual} manual scenario(s) and ${guided} guided scenario(s).`,
     pending > 0 ? `${pending} scenario(s) remain pending.` : "No scoped scenarios remain pending.",
     skipped > 0 ? `${skipped} scenario(s) were skipped and are called out in the report scope.` : "No scoped scenarios were skipped.",
     blocking > 0
@@ -109,7 +112,7 @@ export function toMarkdown(snapshot: ReportSnapshot): string {
   const scenarioLines = snapshot.scenarios
     .map(
       (scenario) =>
-        `- ${scenario.title} [${scenario.protocol}] - ${scenario.outcome}${scenario.evidenceCount > 0 ? ` (${scenario.evidenceCount} evidence)` : ""}${scenario.buyerSafeReportNote ? `: ${scenario.buyerSafeReportNote}` : ""}`,
+        `- ${scenario.title} [${scenario.protocol}, ${scenario.executionMode}] - ${scenario.outcome}${scenario.evidenceCount > 0 ? ` (${scenario.evidenceCount} evidence)` : ""}${scenario.buyerSafeReportNote ? `: ${scenario.buyerSafeReportNote}` : ""}`,
     )
     .join("\n");
 
@@ -120,5 +123,5 @@ export function toMarkdown(snapshot: ReportSnapshot): string {
     ? snapshot.summary.publication.warnings.map((warning) => `- ${warning}`).join("\n")
     : "- None";
 
-  return `# Assurance Report\n\n## Executive summary\n${snapshot.summary.executiveSummary}\n\n## Readiness coverage\n- Total scenarios: ${snapshot.summary.totalScenarios}\n- Executed: ${snapshot.summary.executedScenarios}\n- Passed: ${snapshot.summary.passedScenarios}\n- Failed: ${snapshot.summary.failedScenarios}\n- Skipped: ${snapshot.summary.skippedScenarios}\n- Pending: ${snapshot.summary.pendingScenarios}\n- Readiness score: ${snapshot.summary.readinessScore}\n\n## Publication assessment\nCan publish: ${snapshot.summary.publication.canPublish ? "yes" : "no"}\n\nBlocking reasons:\n${blockingReasons}\n\nWarnings:\n${warnings}\n\n## Scope boundaries\n${snapshot.summary.scopeBoundaries}\n\n## Residual risk\n${snapshot.summary.residualRisk}\n\n## Scenario results\n${scenarioLines}\n\n## Findings\n${findingLines || "- No findings recorded."}\n`;
+  return `# Assurance Report\n\n## Executive summary\n${snapshot.summary.executiveSummary}\n\n## Readiness coverage\n- Total scenarios: ${snapshot.summary.totalScenarios}\n- Executed: ${snapshot.summary.executedScenarios}\n- Passed: ${snapshot.summary.passedScenarios}\n- Failed: ${snapshot.summary.failedScenarios}\n- Skipped: ${snapshot.summary.skippedScenarios}\n- Pending: ${snapshot.summary.pendingScenarios}\n- Manual scenarios: ${snapshot.summary.manualScenarios}\n- Guided scenarios: ${snapshot.summary.guidedScenarios}\n- Assurance method: ${snapshot.summary.assuranceMethod}\n- Readiness score: ${snapshot.summary.readinessScore}\n\n## Publication assessment\nCan publish: ${snapshot.summary.publication.canPublish ? "yes" : "no"}\n\nBlocking reasons:\n${blockingReasons}\n\nWarnings:\n${warnings}\n\n## Scope boundaries\n${snapshot.summary.scopeBoundaries}\n\n## Residual risk\n${snapshot.summary.residualRisk}\n\n## Scenario results\n${scenarioLines}\n\n## Findings\n${findingLines || "- No findings recorded."}\n`;
 }
