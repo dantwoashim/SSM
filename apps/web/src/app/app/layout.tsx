@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { logoutAction } from "@/lib/actions/auth-actions";
 import { SubmitButton } from "@/components/submit-button";
+import { isLocalProdMode } from "@/lib/env";
 
 export default async function PortalLayout({
   children,
@@ -17,6 +18,14 @@ export default async function PortalLayout({
 
   return (
     <div className="portal-shell">
+      {session.role === "founder" && isLocalProdMode() ? (
+        <div className="callout mb-md">
+          <strong>Local founder mode is active</strong>
+          <p className="mt-sm">
+            This deployment is using the local-production override path. Treat it as a private pilot environment, not a hardened public host.
+          </p>
+        </div>
+      ) : null}
       <div className="portal-bar">
         <div className="portal-identity">
           <h2>{session.name}</h2>
