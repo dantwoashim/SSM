@@ -11,6 +11,7 @@ import {
   createInvite,
   convertLeadToEngagement,
   createEngagement,
+  enforceRateLimit,
   getEngagementDetail,
   hasEngagementAccess,
   listCustomerRecipientsForEngagement,
@@ -19,11 +20,11 @@ import {
   updateScenarioRunResult,
 } from "@/lib/data";
 import { assertAppUrlConfigured, env } from "@/lib/env";
-import { assertSameOriginRequest, getRequestMetadata } from "@/lib/request-context";
+import { assertSameOriginRequest, getRequestIp, getRequestMetadata } from "@/lib/request-context";
 import { deleteArtifact, storeArtifact } from "@/lib/storage/provider";
 import type { IdpProvider } from "@assurance/core";
 import { dispatchJob } from "@/lib/jobs";
-import { logError } from "@/lib/logger";
+import { logError, logEvent } from "@/lib/logger";
 import { queueNotification } from "@/lib/email";
 import { dispatchNotificationJob } from "@/lib/jobs";
 import {
@@ -178,6 +179,13 @@ export async function addMessageAction(formData: FormData) {
 export async function uploadAttachmentAction(formData: FormData) {
   const engagementId = parseJobActionForm(formData);
   const session = await requireEngagementAccess(engagementId);
+  const ip = await getRequestIp();
+  await enforceRateLimit({
+    route: "attachment-upload",
+    bucketKey: `attachment-upload:${session.sub}:${ip}`,
+    limit: 30,
+    windowMs: 15 * 60 * 1000,
+  });
   const file = formData.get("file");
   const requestedVisibility = parseVisibility(formData);
   const linkage = parseAttachmentLinkage(formData);
@@ -192,6 +200,19 @@ export async function uploadAttachmentAction(formData: FormData) {
   validateAttachmentContent(bytes, file.type || "application/octet-stream", file.name);
   const safeFileName = sanitizeAttachmentFileName(file.name);
   const storageKey = `${engagementId}/${crypto.randomUUID()}-${safeFileName}`;
+  logEvent("info", "attachment.upload_requested", {
+    engagementId,
+    actorId: session.sub,
+    actorRole: session.role,
+    originalFileName: file.name,
+    normalizedFileName: safeFileName,
+    contentType: file.type || "application/octet-stream",
+    bytes: file.size,
+    visibility,
+    scenarioRunId: linkage.scenarioRunId,
+    findingId: linkage.findingId,
+    reportId: linkage.reportId,
+  });
   await storeArtifact(storageKey, safeFileName, bytes, file.type || "application/octet-stream");
   try {
     await registerAttachment({
@@ -247,6 +268,13 @@ export async function generateReportAction(formData: FormData) {
 
 export async function publishReportAction(formData: FormData) {
   const session = await requireFounder();
+  const ip = await getRequestIp();
+  await enforceRateLimit({
+    route: "report-publish",
+    bucketKey: `report-publish:${session.sub}:${ip}`,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
   const requestMeta = await getRequestMetadata();
   const parsed = parsePublishReportForm(formData);
   const { reportId, engagementId } = parsed;
@@ -315,6 +343,13 @@ export async function createInviteAction(
 ) {
   try {
     const session = await requireFounder();
+    const ip = await getRequestIp();
+    await enforceRateLimit({
+      route: "invite-create",
+      bucketKey: `invite-create:${session.sub}:${ip}`,
+      limit: 30,
+      windowMs: 60 * 60 * 1000,
+    });
     const requestMeta = await getRequestMetadata();
     const parsed = parseInviteForm(formData);
     const engagementId = parsed.engagementId;
