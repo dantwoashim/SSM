@@ -24,6 +24,8 @@ The current container path uses the standard production Next server, not a custo
 
 `/api/readyz` is the authoritative deploy gate. It fails when the database, required artifact storage, Redis, or the worker heartbeat is not healthy for the configured mode.
 
+The founder-facing `Operations` page complements that endpoint once the app is running. Use it to watch failed jobs, queued notifications, artifact review backlog, and worker heartbeat freshness.
+
 ## Required environment variables
 
 - Web:
