@@ -12,6 +12,15 @@
     "paths": {
       "@assurance/core": [
         "packages/core/src/index.ts"
+      ],
+      "@assurance/core/*": [
+        "packages/core/src/*"
+      ],
+      "@assurance/service": [
+        "packages/service/src/index.ts"
+      ],
+      "@assurance/service/*": [
+        "packages/service/src/*"
       ]
     }
   }
