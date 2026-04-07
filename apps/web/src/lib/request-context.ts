@@ -29,10 +29,11 @@ export async function getRequestMetadata() {
 export async function assertSameOriginRequest() {
   const requestHeaders = await headers();
   const origin = requestHeaders.get("origin");
+  const referer = requestHeaders.get("referer");
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
   const protocol = requestHeaders.get("x-forwarded-proto") || "https";
 
-  if (!origin || !host) {
+  if (!host) {
     throw new Error("Missing request origin metadata.");
   }
 
@@ -45,7 +46,9 @@ export async function assertSameOriginRequest() {
     // Ignore malformed APP_URL during local development.
   }
 
-  if (!allowedOrigins.has(origin)) {
+  const candidateOrigin = origin || (referer ? new URL(referer).origin : null);
+
+  if (!candidateOrigin || !allowedOrigins.has(candidateOrigin)) {
     throw new Error("Cross-site form submission blocked.");
   }
 }
