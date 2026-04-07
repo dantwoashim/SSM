@@ -32,3 +32,13 @@ export class ArtifactStorageError extends Error {
     this.name = "ArtifactStorageError";
   }
 }
+
+export class ReportStaleError extends Error {
+  readonly reasons: string[];
+
+  constructor(reasons: string[]) {
+    super(reasons[0] || "The report draft is stale and must be regenerated before publication.");
+    this.name = "ReportStaleError";
+    this.reasons = reasons;
+  }
+}

@@ -640,6 +640,80 @@ describe("service integration", () => {
     }
   }, 20_000);
 
+  test("stale drafts block publication until refreshed, then publish with immutable artifact metadata", async () => {
+    const stateRoot = makeStateRoot();
+    const service = await bootService(stateRoot);
+
+    try {
+      const founder = await service.ensureFounderUser();
+      const engagement = await service.createEngagement({
+        title: "Acme <> Woodgrove Deal Rescue",
+        companyName: "Acme SaaS",
+        productUrl: "https://staging.acme.example",
+        targetCustomer: "Woodgrove",
+        targetIdp: "okta",
+        deadline: "2026-06-03",
+        claimedFeatures: ["sp-initiated-sso"],
+        actorName: founder.name,
+        ownerUserId: founder.id,
+      });
+
+      const run = await service.generateTestPlan(engagement.id, founder.name);
+      const scenarios = await service.listScenariosForRun(run.id);
+      const [scenario] = scenarios;
+
+      for (const row of scenarios) {
+        await service.updateScenarioRunResult({
+          scenarioRunId: row.id,
+          outcome: "passed",
+          reviewerNotes: "Completed successfully.",
+          customerVisibleSummary: "Completed successfully.",
+          buyerSafeReportNote: "Completed successfully during the current cycle.",
+          actorName: founder.name,
+        });
+      }
+
+      const draft = await service.generateReport(engagement.id, founder.name);
+
+      await service.registerAttachment({
+        engagementId: engagement.id,
+        uploadedBy: founder.name,
+        visibility: "shared",
+        fileName: "late-evidence.txt",
+        storageKey: "artifacts/late-evidence.txt",
+        contentType: "text/plain",
+        size: 14,
+        scanStatus: "clean",
+        scanSummary: "Passed lightweight scan.",
+        trustLevel: "verified",
+        retentionUntil: "2026-12-31T00:00:00.000Z",
+        scenarioRunId: scenario.id,
+      });
+
+      await expect(service.publishReport(draft.id, founder.name)).rejects.toThrow(/draft|evidence|scenario/i);
+
+      const refreshedDraft = await service.generateReport(engagement.id, founder.name);
+      expect(refreshedDraft.id).toBe(draft.id);
+      expect(refreshedDraft.basisStateHash).not.toBe(draft.basisStateHash);
+
+      await service.publishReport(refreshedDraft.id, founder.name, false, {
+        storageKey: `published-reports/${engagement.id}/${refreshedDraft.id}/v${refreshedDraft.version}.pdf`,
+        fileName: `${engagement.id}-report-v${refreshedDraft.version}.pdf`,
+        contentType: "application/pdf",
+        checksumSha256: "abc123",
+      });
+
+      const published = await service.findReportById(refreshedDraft.id);
+      expect(published?.status).toBe("published");
+      expect(published?.publishedArtifactStorageKey).toContain(`published-reports/${engagement.id}`);
+      expect(published?.publishedArtifactContentType).toBe("application/pdf");
+      expect(published?.publishedArtifactChecksumSha256).toBe("abc123");
+    } finally {
+      await service.resetDatabaseForTests();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  }, 20_000);
+
   test("soft-deleting an attachment removes it from the active evidence trail", async () => {
     const stateRoot = makeStateRoot();
     const service = await bootService(stateRoot);

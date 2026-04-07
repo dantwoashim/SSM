@@ -10,6 +10,7 @@ export {
   createLead,
   createJobRun,
   buildProviderValidationSummary,
+  assessReportFreshness,
   ensureFounderUser,
   enforceRateLimit,
   findAttachmentById,

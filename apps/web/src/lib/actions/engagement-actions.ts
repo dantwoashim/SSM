@@ -13,6 +13,7 @@ import {
   createEngagement,
   enforceRateLimit,
   getEngagementDetail,
+  findReportById,
   hasEngagementAccess,
   listCustomerRecipientsForEngagement,
   publishReport,
@@ -28,6 +29,7 @@ import { dispatchJob } from "@/lib/jobs";
 import { logError, logEvent } from "@/lib/logger";
 import { queueNotification } from "@/lib/email";
 import { dispatchNotificationJob } from "@/lib/jobs";
+import { renderReportPdf } from "@/lib/pdf";
 import {
   parseAttachmentLinkage,
   parseCreateEngagementForm,
@@ -314,7 +316,39 @@ export async function publishReportAction(formData: FormData) {
   const requestMeta = await getRequestMetadata();
   const parsed = parsePublishReportForm(formData);
   const { reportId, engagementId } = parsed;
-  await publishReport(reportId, session.name, parsed.acknowledgeWarnings);
+  const report = await findReportById(reportId);
+
+  if (!report) {
+    throw new Error("Report not found.");
+  }
+
+  const publishedFileName = sanitizeAttachmentFileName(
+    `${engagementId}-report-v${report.version}.pdf`,
+  );
+  const storageKey = `published-reports/${engagementId}/${report.id}/v${report.version}.pdf`;
+  const pdfBytes = await renderReportPdf(report.reportJson);
+  const publishedChecksumSha256 = createHash("sha256").update(pdfBytes).digest("hex");
+  await storeArtifact(storageKey, publishedFileName, pdfBytes, "application/pdf");
+
+  try {
+    await publishReport(reportId, session.name, parsed.acknowledgeWarnings, {
+      storageKey,
+      fileName: publishedFileName,
+      contentType: "application/pdf",
+      checksumSha256: publishedChecksumSha256,
+    });
+  } catch (error) {
+    await deleteArtifact(storageKey).catch((cleanupError) => {
+      logError("report.publish_cleanup_failed", cleanupError, {
+        reportId,
+        engagementId,
+        storageKey,
+        requestId: requestMeta.requestId,
+        requestIp: requestMeta.requestIp,
+      });
+    });
+    throw error;
+  }
   const detail = await getEngagementDetail(engagementId);
 
   if (detail) {
@@ -346,6 +380,7 @@ export async function publishReportAction(formData: FormData) {
         engagementId,
         recipientEmail: recipient.email,
         notificationId: notification.id,
+        publishedArtifactStorageKey: storageKey,
         requestId: requestMeta.requestId,
         requestIp: requestMeta.requestIp,
       });

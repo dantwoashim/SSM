@@ -6,10 +6,9 @@ import {
   scenarioLibrary,
 } from "@assurance/core";
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
-import { getEngagementDetail } from "./engagements";
 import { makeId, now } from "./helpers";
 import {
   attachments,
@@ -17,9 +16,35 @@ import {
   findings as findingsTable,
   reports,
   scenarioRuns as scenarioRunsTable,
+  testRuns,
 } from "./schema";
 import { assertEngagementTransition, assertReportTransition } from "./workflow";
 import { buildProviderValidationSummary } from "../provider-adapters";
+import { ReportStaleError } from "../errors";
+
+type ReportBasisDetail = {
+  engagement: typeof engagements.$inferSelect;
+  latestRun: typeof testRuns.$inferSelect | null;
+  scenarioRows: Array<typeof scenarioRunsTable.$inferSelect>;
+  findingRows: Array<typeof findingsTable.$inferSelect>;
+  attachmentRows: Array<typeof attachments.$inferSelect>;
+  reportRows: Array<typeof reports.$inferSelect>;
+};
+
+export type ReportPublicationArtifact = {
+  storageKey: string;
+  fileName: string;
+  contentType: string;
+  checksumSha256?: string | null;
+};
+
+export type ReportFreshnessAssessment = {
+  isFresh: boolean;
+  reasons: string[];
+  currentBasisRunId: string | null;
+  currentEvidenceHash: string;
+  currentStateHash: string;
+};
 
 function slugifyScenarioTitle(title: string) {
   return title
@@ -76,7 +101,8 @@ function buildReportSnapshot(input: {
       executionMode: row.executionMode as "manual" | "guided",
       outcome: row.outcome as "pending" | "passed" | "failed" | "skipped",
       customerSummary: row.customerVisibleSummary || row.reviewerNotes || "No customer-facing summary recorded.",
-      buyerSafeReportNote: row.buyerSafeReportNote || row.customerVisibleSummary || "No buyer-safe report note recorded.",
+      buyerSafeReportNote:
+        row.buyerSafeReportNote || row.customerVisibleSummary || "No buyer-safe report note recorded.",
       evidenceCount: linkedAttachmentCount || row.evidence.length,
     };
   });
@@ -151,7 +177,121 @@ function buildReportSnapshot(input: {
   return snapshot;
 }
 
-export function validateReportPublication(snapshot: ReportSnapshot, acknowledgedWarnings = false) {
+function buildStateHash(snapshot: ReportSnapshot) {
+  const normalizedSnapshot = {
+    ...snapshot,
+    generatedAt: "",
+  };
+
+  return createHash("sha256").update(JSON.stringify(normalizedSnapshot)).digest("hex");
+}
+
+function buildReportBasis(detail: Omit<ReportBasisDetail, "reportRows"> | ReportBasisDetail) {
+  const snapshot = buildReportSnapshot({
+    engagement: detail.engagement,
+    scenarioRows: detail.scenarioRows,
+    findingRows: detail.findingRows,
+    attachmentRows: detail.attachmentRows,
+  });
+
+  return {
+    snapshot,
+    basisRunId: detail.latestRun?.id || null,
+    basisEvidenceHash: buildEvidenceHash(detail.attachmentRows),
+    basisStateHash: buildStateHash(snapshot),
+  };
+}
+
+async function loadReportBasisDetail(db: Awaited<ReturnType<typeof getDb>>, engagementId: string): Promise<ReportBasisDetail | null> {
+  const [engagement] = await db
+    .select()
+    .from(engagements)
+    .where(eq(engagements.id, engagementId))
+    .limit(1);
+
+  if (!engagement) {
+    return null;
+  }
+
+  const runRows = await db
+    .select()
+    .from(testRuns)
+    .where(eq(testRuns.engagementId, engagementId))
+    .orderBy(desc(testRuns.createdAt));
+  const latestRun = runRows[0] ?? null;
+  const scenarioRows = latestRun
+    ? await db.select().from(scenarioRunsTable).where(eq(scenarioRunsTable.testRunId, latestRun.id))
+    : [];
+  const findingRows = await db
+    .select()
+    .from(findingsTable)
+    .where(eq(findingsTable.engagementId, engagementId))
+    .orderBy(desc(findingsTable.createdAt));
+  const reportRows = await db
+    .select()
+    .from(reports)
+    .where(eq(reports.engagementId, engagementId))
+    .orderBy(desc(reports.version));
+  const attachmentRows = (await db
+    .select()
+    .from(attachments)
+    .where(eq(attachments.engagementId, engagementId))
+    .orderBy(desc(attachments.createdAt)))
+    .filter((attachment: typeof attachments.$inferSelect) => !attachment.deletedAt);
+
+  return {
+    engagement,
+    latestRun,
+    scenarioRows,
+    findingRows,
+    attachmentRows,
+    reportRows,
+  };
+}
+
+function compareReportBasis(
+  report: Pick<typeof reports.$inferSelect, "basisRunId" | "basisEvidenceHash" | "basisStateHash">,
+  basis: Pick<ReturnType<typeof buildReportBasis>, "basisRunId" | "basisEvidenceHash" | "basisStateHash">,
+): ReportFreshnessAssessment {
+  const reasons: string[] = [];
+
+  if ((report.basisRunId || null) !== basis.basisRunId) {
+    reasons.push("The current test cycle changed after this draft was generated.");
+  }
+
+  if ((report.basisEvidenceHash || null) !== (basis.basisEvidenceHash || null)) {
+    reasons.push("Evidence changed after this draft was generated.");
+  }
+
+  if ((report.basisStateHash || null) !== (basis.basisStateHash || null)) {
+    reasons.push("Scenario outcomes or finding state changed after this draft was generated.");
+  }
+
+  return {
+    isFresh: reasons.length === 0,
+    reasons,
+    currentBasisRunId: basis.basisRunId,
+    currentEvidenceHash: basis.basisEvidenceHash,
+    currentStateHash: basis.basisStateHash,
+  };
+}
+
+export function assessReportFreshness(
+  report: Pick<typeof reports.$inferSelect, "basisRunId" | "basisEvidenceHash" | "basisStateHash">,
+  detail: Omit<ReportBasisDetail, "reportRows"> | ReportBasisDetail,
+) {
+  return compareReportBasis(report, buildReportBasis(detail));
+}
+
+export function validateReportPublication(
+  snapshot: ReportSnapshot,
+  acknowledgedWarnings = false,
+  freshness?: Pick<ReportFreshnessAssessment, "isFresh" | "reasons">,
+) {
+  if (freshness && !freshness.isFresh) {
+    throw new ReportStaleError(freshness.reasons);
+  }
+
   if (!snapshot.summary.publication.canPublish) {
     throw new Error(snapshot.summary.publication.blockingReasons[0] || "This report cannot be published yet.");
   }
@@ -162,45 +302,91 @@ export function validateReportPublication(snapshot: ReportSnapshot, acknowledged
 }
 
 export async function generateReport(engagementId: string, actorName: string) {
-  const detail = await getEngagementDetail(engagementId);
-
-  if (!detail) {
-    throw new Error("Engagement not found.");
-  }
-
   return runInTransaction(async (db) => {
-    const basisRunId = detail.latestRun?.id || null;
+    const detail = await loadReportBasisDetail(db, engagementId);
+
+    if (!detail) {
+      throw new Error("Engagement not found.");
+    }
+
+    const { snapshot, basisRunId, basisEvidenceHash, basisStateHash } = buildReportBasis(detail);
+    const timestamp = now();
+
     if (basisRunId) {
       const [existingDraft] = await db
         .select()
         .from(reports)
-        .where(and(eq(reports.engagementId, engagementId), eq(reports.basisRunId, basisRunId), eq(reports.status, "draft")))
+        .where(
+          and(
+            eq(reports.engagementId, engagementId),
+            eq(reports.basisRunId, basisRunId),
+            eq(reports.status, "draft"),
+          ),
+        )
         .limit(1);
 
       if (existingDraft) {
-        return existingDraft;
+        const freshness = compareReportBasis(existingDraft, {
+          basisRunId,
+          basisEvidenceHash,
+          basisStateHash,
+        });
+
+        if (freshness.isFresh) {
+          return existingDraft;
+        }
+
+        const refreshedDraft = {
+          ...existingDraft,
+          basisEvidenceHash,
+          basisStateHash,
+          executiveSummary: snapshot.summary.executiveSummary,
+          residualRisk: snapshot.summary.residualRisk,
+          scopeBoundaries: snapshot.summary.scopeBoundaries,
+          readinessScore: snapshot.summary.readinessScore,
+          reportJson: snapshot,
+        };
+
+        await db
+          .update(reports)
+          .set({
+            basisEvidenceHash,
+            basisStateHash,
+            executiveSummary: snapshot.summary.executiveSummary,
+            residualRisk: snapshot.summary.residualRisk,
+            scopeBoundaries: snapshot.summary.scopeBoundaries,
+            readinessScore: snapshot.summary.readinessScore,
+            reportJson: snapshot,
+          })
+          .where(eq(reports.id, existingDraft.id));
+        await audit(actorName, "refreshed_report_draft", "report", existingDraft.id, {
+          engagementId,
+          version: existingDraft.version,
+          basisRunId,
+          basisEvidenceHash,
+          basisStateHash,
+        }, db);
+        return refreshedDraft;
       }
     }
 
-    const snapshot = buildReportSnapshot({
-      engagement: detail.engagement,
-      scenarioRows: detail.scenarioRows,
-      findingRows: detail.findingRows,
-      attachmentRows: detail.attachmentRows,
-    });
     const version = (detail.reportRows[0]?.version || 0) + 1;
-    const timestamp = now();
     const report = {
       id: makeId("report"),
       engagementId,
       version,
       basisRunId,
-      basisEvidenceHash: buildEvidenceHash(detail.attachmentRows),
+      basisEvidenceHash,
+      basisStateHash,
       status: "draft" as const,
       executiveSummary: snapshot.summary.executiveSummary,
       residualRisk: snapshot.summary.residualRisk,
       scopeBoundaries: snapshot.summary.scopeBoundaries,
       readinessScore: snapshot.summary.readinessScore,
+      publishedArtifactStorageKey: null,
+      publishedArtifactFileName: null,
+      publishedArtifactContentType: null,
+      publishedArtifactChecksumSha256: null,
       reportJson: snapshot,
       createdAt: timestamp,
       publishedAt: null,
@@ -214,7 +400,13 @@ export async function generateReport(engagementId: string, actorName: string) {
         const [existingDraft] = await db
           .select()
           .from(reports)
-          .where(and(eq(reports.engagementId, engagementId), eq(reports.basisRunId, basisRunId), eq(reports.status, "draft")))
+          .where(
+            and(
+              eq(reports.engagementId, engagementId),
+              eq(reports.basisRunId, basisRunId),
+              eq(reports.status, "draft"),
+            ),
+          )
           .limit(1);
 
         if (existingDraft) {
@@ -237,13 +429,19 @@ export async function generateReport(engagementId: string, actorName: string) {
       engagementId,
       version,
       basisRunId,
-      basisEvidenceHash: report.basisEvidenceHash,
+      basisEvidenceHash,
+      basisStateHash,
     }, db);
     return report;
   });
 }
 
-export async function publishReport(reportId: string, actorName: string, acknowledgedWarnings = false) {
+export async function publishReport(
+  reportId: string,
+  actorName: string,
+  acknowledgedWarnings = false,
+  publicationArtifact?: ReportPublicationArtifact,
+) {
   await runInTransaction(async (db) => {
     const [report] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
 
@@ -251,7 +449,14 @@ export async function publishReport(reportId: string, actorName: string, acknowl
       throw new Error("Report not found.");
     }
 
-    validateReportPublication(report.reportJson, acknowledgedWarnings);
+    const detail = await loadReportBasisDetail(db, report.engagementId);
+
+    if (!detail) {
+      throw new Error("Engagement not found.");
+    }
+
+    const freshness = compareReportBasis(report, buildReportBasis(detail));
+    validateReportPublication(report.reportJson, acknowledgedWarnings, freshness);
     assertReportTransition(report.status, "published");
 
     const timestamp = now();
@@ -260,19 +465,15 @@ export async function publishReport(reportId: string, actorName: string, acknowl
       .set({
         status: "published",
         publishedAt: timestamp,
+        publishedArtifactStorageKey: publicationArtifact?.storageKey || report.publishedArtifactStorageKey,
+        publishedArtifactFileName: publicationArtifact?.fileName || report.publishedArtifactFileName,
+        publishedArtifactContentType: publicationArtifact?.contentType || report.publishedArtifactContentType,
+        publishedArtifactChecksumSha256:
+          publicationArtifact?.checksumSha256 || report.publishedArtifactChecksumSha256,
       })
       .where(eq(reports.id, reportId));
-    const [engagement] = await db
-      .select()
-      .from(engagements)
-      .where(eq(engagements.id, report.engagementId))
-      .limit(1);
 
-    if (!engagement) {
-      throw new Error("Engagement not found.");
-    }
-
-    assertEngagementTransition(engagement.status, "report-ready");
+    assertEngagementTransition(detail.engagement.status, "report-ready");
     await db
       .update(engagements)
       .set({
@@ -282,6 +483,10 @@ export async function publishReport(reportId: string, actorName: string, acknowl
       .where(eq(engagements.id, report.engagementId));
     await audit(actorName, "published_report", "report", reportId, {
       engagementId: report.engagementId,
+      basisRunId: report.basisRunId,
+      basisEvidenceHash: report.basisEvidenceHash,
+      basisStateHash: report.basisStateHash,
+      immutableArtifactStored: !!publicationArtifact,
     }, db);
   });
 }

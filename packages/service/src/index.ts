@@ -38,7 +38,13 @@ export {
   sendQueuedNotification,
 } from "./data/notifications";
 export { enforceRateLimit } from "./data/rate-limits";
-export { findAttachmentById, findReportById, generateReport, publishReport } from "./data/reports";
+export {
+  assessReportFreshness,
+  findAttachmentById,
+  findReportById,
+  generateReport,
+  publishReport,
+} from "./data/reports";
 export { authenticateUser, ensureFounderUser, getUserByEmail } from "./data/users";
 export { getLatestWorkerHeartbeat, recordWorkerHeartbeat } from "./data/worker-heartbeats";
 export { env, isLocalProdMode, isProductionLike } from "./env";
@@ -48,5 +54,6 @@ export {
   InviteAccountMismatchError,
   InviteRequiresSignInError,
   AttachmentLinkageError,
+  ReportStaleError,
 } from "./errors";
 export { logError, logEvent } from "./logger";

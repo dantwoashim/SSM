@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  assessReportFreshness,
   buildProviderValidationSummary,
   getEngagementDetail,
   hasEngagementAccess,
@@ -73,6 +73,10 @@ export default async function EngagementDetailPage({
     ? detail.reportRows
     : detail.reportRows.filter((report: { status: string }) => report.status === "published");
   const latestReport = reportRows[0];
+  const latestReportFreshness =
+    founderView && latestReport
+      ? assessReportFreshness(latestReport, detail)
+      : null;
   const jobRows: JobRunView[] = detail.jobRows;
   const openInvites =
     founderView ? await listOpenInvitesForEngagement(detail.engagement.id) : [];
@@ -101,6 +105,7 @@ export default async function EngagementDetailPage({
         founderView={founderView}
         engagementId={detail.engagement.id}
         latestReport={latestReport}
+        latestReportFreshness={latestReportFreshness}
       />
       <MessagesSection
         founderView={founderView}

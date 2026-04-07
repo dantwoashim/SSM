@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { audit, findReportById, hasEngagementAccess } from "@/lib/data";
 import { renderReportPdf } from "@/lib/pdf";
 import { getCurrentSession } from "@/lib/session";
+import { getArtifactDownload } from "@/lib/storage/provider";
 import { sanitizeAttachmentFileName } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -37,10 +38,44 @@ export async function GET(
     return NextResponse.json({ error: "Draft reports are founder-only" }, { status: 403 });
   }
 
+  if (
+    report.status === "published" &&
+    report.publishedArtifactStorageKey &&
+    report.publishedArtifactContentType
+  ) {
+    const immutableDownload = await getArtifactDownload(
+      report.publishedArtifactStorageKey,
+      report.publishedArtifactContentType,
+      report.publishedArtifactFileName || `${report.id}.pdf`,
+    );
+    await audit(session.name, "downloaded_report_pdf", "report", report.id, {
+      engagementId: report.engagementId,
+      status: report.status,
+      source: "immutable-artifact",
+    });
+
+    if (immutableDownload.type === "redirect") {
+      return NextResponse.redirect(immutableDownload.url, {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      });
+    }
+
+    return new NextResponse(Buffer.from(immutableDownload.body), {
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Content-Type": immutableDownload.contentType,
+        "Content-Disposition": immutableDownload.contentDisposition,
+      },
+    });
+  }
+
   const bytes = await renderReportPdf(report.reportJson);
   await audit(session.name, "downloaded_report_pdf", "report", report.id, {
     engagementId: report.engagementId,
     status: report.status,
+    source: report.status === "published" ? "dynamic-fallback" : "draft-render",
   });
 
   return new NextResponse(Buffer.from(bytes), {

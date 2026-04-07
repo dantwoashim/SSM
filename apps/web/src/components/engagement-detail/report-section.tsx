@@ -10,6 +10,7 @@ export function ReportSection({
   founderView,
   engagementId,
   latestReport,
+  latestReportFreshness,
 }: {
   founderView: boolean;
   engagementId: string;
@@ -42,11 +43,22 @@ export function ReportSection({
         };
       }
     | undefined;
+  latestReportFreshness:
+    | {
+        isFresh: boolean;
+        reasons: string[];
+      }
+    | null;
 }) {
   const [publishState, publishAction] = useActionState(publishReportStateAction, {
     error: "",
     notice: "",
   });
+  const draftIsStale =
+    founderView &&
+    latestReport?.status === "draft" &&
+    latestReportFreshness &&
+    !latestReportFreshness.isFresh;
 
   return (
     <section className="detail-section">
@@ -115,11 +127,24 @@ export function ReportSection({
               </ul>
             </div>
           ) : null}
+          {draftIsStale ? (
+            <div className="callout mt-md">
+              <strong>Draft stale</strong>
+              <p className="mt-sm">
+                This draft no longer matches the current evidence or finding state. Draft the report again before publishing.
+              </p>
+              <ul className="mt-sm">
+                {latestReportFreshness.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="actions mt-lg">
             <Link className="button-secondary" href={`/api/reports/${latestReport.id}/pdf`}>
               Download PDF
             </Link>
-            {founderView ? (
+            {founderView && latestReport.status === "draft" && !draftIsStale ? (
               <form action={publishAction}>
                 <input type="hidden" name="reportId" value={latestReport.id} />
                 <input type="hidden" name="engagementId" value={engagementId} />
@@ -131,6 +156,8 @@ export function ReportSection({
                 ) : null}
                 <SubmitButton pendingLabel="Publishing report...">Publish report</SubmitButton>
               </form>
+            ) : founderView && latestReport.status === "published" ? (
+              <p className="muted">This published report is locked to its publication artifact.</p>
             ) : null}
           </div>
           {publishState.error ? <p className="error-message mt-md">{publishState.error}</p> : null}
