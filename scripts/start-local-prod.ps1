@@ -12,7 +12,7 @@ Set-Location $root
 
 if (-not (Test-Path (Join-Path $root "node_modules"))) {
   Write-Host "Installing dependencies..."
-  npm install
+  npm ci
 }
 
 Write-Host "Building production bundle..."
