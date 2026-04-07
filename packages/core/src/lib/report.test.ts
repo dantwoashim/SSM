@@ -12,6 +12,7 @@ const snapshot: ReportSnapshot = {
     executiveSummary: "",
     residualRisk: "One finding remains open in scope.",
     scopeBoundaries: "Staging tenant only.",
+    assuranceMethod: "This report is based on reviewer-managed scenario execution and collected evidence.",
     readinessScore: 0,
     totalScenarios: 2,
     executedScenarios: 2,
@@ -19,6 +20,8 @@ const snapshot: ReportSnapshot = {
     failedScenarios: 1,
     skippedScenarios: 0,
     pendingScenarios: 0,
+    manualScenarios: 1,
+    guidedScenarios: 1,
     publication: {
       canPublish: true,
       requiresAcknowledgement: true,
@@ -31,6 +34,7 @@ const snapshot: ReportSnapshot = {
       id: "sso-sp-initiated",
       title: "SP initiated login",
       protocol: "saml",
+      executionMode: "guided",
       outcome: "passed",
       customerSummary: "The staged launch resolved to the correct tenant.",
       buyerSafeReportNote: "SP-initiated launch resolved to the expected tenant during validation.",
@@ -40,6 +44,7 @@ const snapshot: ReportSnapshot = {
       id: "group-role-mapping",
       title: "Group to role mapping",
       protocol: "scim",
+      executionMode: "manual",
       outcome: "failed",
       customerSummary: "The mapped role did not match the intended admin assignment.",
       buyerSafeReportNote: "Group-to-role mapping did not produce the intended admin access during validation.",
@@ -69,6 +74,7 @@ describe("report helpers", () => {
     expect(summary).toContain("Acme SaaS was assessed for Northwind Financial");
     expect(summary).toContain("1 of 2 scoped scenarios passed");
     expect(summary).toContain("1 blocking issue(s) remain before go-live.");
+    expect(summary).toContain("reviewer-managed");
   });
 
   it("blocks publication when coverage is pending or skipped too heavily", () => {
