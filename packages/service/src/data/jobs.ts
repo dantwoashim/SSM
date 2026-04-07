@@ -49,7 +49,32 @@ export async function createJobRun(input: {
     completedAt: null,
   };
 
-  await db.insert(jobRuns).values(jobRun);
+  try {
+    await db.insert(jobRuns).values(jobRun);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (input.idempotencyKey && /job_runs_active_idempotency_idx|duplicate|unique/i.test(message)) {
+      const [existing] = await db
+        .select()
+        .from(jobRuns)
+        .where(
+          and(
+            eq(jobRuns.idempotencyKey, input.idempotencyKey),
+            inArray(jobRuns.status, ["queued", "running"]),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        return {
+          jobRun: existing,
+          created: false as const,
+        };
+      }
+    }
+
+    throw error;
+  }
   await audit(input.actorName, "created_job_run", "job_run", jobRun.id, {
     engagementId: input.engagementId,
     name: input.name,
