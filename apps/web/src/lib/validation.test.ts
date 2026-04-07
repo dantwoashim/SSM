@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ActionValidationError,
   maxAttachmentBytes,
+  inspectAttachmentContent,
   parseAcceptInviteForm,
   parseCreateEngagementForm,
   parseLeadForm,
@@ -180,6 +181,38 @@ describe("validation helpers", () => {
         new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
         "application/pdf",
         "evidence.pdf",
+      ),
+    ).toThrow(ActionValidationError);
+  });
+
+  it("marks suspicious text artifacts for manual review", () => {
+    const inspection = inspectAttachmentContent(
+      new TextEncoder().encode("<script>alert('x')</script>"),
+      "text/plain",
+      "payload.txt",
+    );
+
+    expect(inspection.scanStatus).toBe("manual-review-required");
+    expect(inspection.trustLevel).toBe("restricted");
+  });
+
+  it("marks formula-bearing csv uploads for manual review", () => {
+    const inspection = inspectAttachmentContent(
+      new TextEncoder().encode("name,value\n=cmd|' /C calc'!A0,1"),
+      "text/csv",
+      "sheet.csv",
+    );
+
+    expect(inspection.scanStatus).toBe("manual-review-required");
+    expect(inspection.trustLevel).toBe("restricted");
+  });
+
+  it("requires valid json when a file claims application/json", () => {
+    expect(() =>
+      inspectAttachmentContent(
+        new TextEncoder().encode("{broken"),
+        "application/json",
+        "broken.json",
       ),
     ).toThrow(ActionValidationError);
   });
