@@ -56,11 +56,14 @@ Before a hosted deploy, run:
 ```powershell
 npm run verify
 npm run smoke:docker
+npm run package:source
 ```
 
 `npm run smoke:start` boots the production server with local-production safeguards and verifies `healthz`, `readyz`, and the login route before the deploy is treated as credible.
 
 `npm run smoke:docker` proves that the packaged container image can boot and answer the same baseline endpoints.
+
+`npm run package:source` creates the clean source bundle from Git-tracked files only. Use that bundle if you need to hand the repository to someone else. Do not zip the working tree by hand.
 
 Use `smoke:start` when you are validating the app directly on a host machine. Use `smoke:docker` when you need to trust the image artifact itself.
 
