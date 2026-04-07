@@ -62,6 +62,12 @@ export async function renderReportPdf(snapshot: ReportSnapshot) {
   }
 
   cursorY -= 8;
+  drawLine("Assurance Method", { bold: true, size: 14 });
+  for (const line of wrapText(snapshot.summary.assuranceMethod)) {
+    drawLine(line);
+  }
+
+  cursorY -= 8;
   drawLine("Scope Boundaries", { bold: true, size: 14 });
   for (const line of wrapText(snapshot.summary.scopeBoundaries)) {
     drawLine(line);
@@ -76,7 +82,9 @@ export async function renderReportPdf(snapshot: ReportSnapshot) {
   cursorY -= 8;
   drawLine("Scenario Results", { bold: true, size: 14 });
   for (const scenario of snapshot.scenarios) {
-    drawLine(`${scenario.title} (${scenario.protocol}) - ${scenario.outcome}`, { bold: true });
+    drawLine(`${scenario.title} (${scenario.protocol}, ${scenario.executionMode}) - ${scenario.outcome}`, {
+      bold: true,
+    });
     for (const line of wrapText(scenario.buyerSafeReportNote || "No buyer-safe note recorded.")) {
       drawLine(line);
     }
