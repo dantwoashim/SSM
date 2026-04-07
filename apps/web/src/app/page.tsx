@@ -37,16 +37,16 @@ export default function HomePage() {
   return (
     <>
       <section className="hero">
-        <span className="page-label">Revenue-grade identity readiness</span>
+        <span className="page-label">Manual-first enterprise identity assurance</span>
         <h1>
-          Close enterprise deals before SSO and SCIM edge cases stall the
-          rollout.
+          Close enterprise deals without improvising your identity rollout proof in spreadsheets and screenshots.
         </h1>
         <p>
-          Identity Go-Live Assurance helps B2B SaaS teams prove that SAML, SCIM,
-          JIT, group mapping, and deprovisioning work for a named customer
-          environment - before the buyer&apos;s IAM team finds the failure
-          first.
+          Identity Go-Live Assurance gives a delivery team one place to scope a
+          named customer rollout, run reviewer-managed SSO and SCIM checks,
+          collect evidence, and publish a buyer-safe report. Today&apos;s product
+          supports the assurance workflow and publication controls; the tenant
+          validation work itself is still operator-run.
         </p>
         <div className="actions">
           <Link className="button-primary" href="/intake">
@@ -69,7 +69,7 @@ export default function HomePage() {
         </div>
         <div className="stat-item">
           <span className="stat-value">3</span>
-          <span className="stat-label">Day-one IdPs supported</span>
+          <span className="stat-label">Scenario libraries shipped</span>
         </div>
       </div>
 
@@ -94,7 +94,8 @@ export default function HomePage() {
               <h2>How the workflow lands faster</h2>
               <p>
                 Deal Rescue: one environment, one target customer, one report,
-                one retest.
+                one retest. The software keeps the work structured and honest;
+                the reviewer still performs the customer-specific validation.
               </p>
             </div>
             <ol className="numbered-steps">
@@ -117,7 +118,9 @@ export default function HomePage() {
           <h2>A buyer-safe report that makes your claim believable</h2>
           <p>
             The artifact is the product. Engineering gets structured
-            remediation; sales engineering gets a forwardable proof packet.
+            remediation; sales engineering gets a forwardable proof packet; the
+            buyer gets a record of what was actually reviewed rather than a vague
+            claim that everything is &quot;supported.&quot;
           </p>
           <p className="muted">
             The preview below is built from redacted demo data so visitors can inspect the structure without exposing a customer engagement.
@@ -163,7 +166,8 @@ export default function HomePage() {
             <h3>Executive summary</h3>
             <p className="mt-sm">
               Pass/fail risk in procurement-safe language with severity, scope,
-              and residual risk.
+              residual risk, and an explicit note about how the work was carried
+              out.
             </p>
           </div>
           <div>
@@ -177,7 +181,8 @@ export default function HomePage() {
             <h3>Retest-ready workflow</h3>
             <p className="mt-sm">
               Track which scenarios changed, which findings remain open, and
-              which proof is safe to share.
+              which proof is safe to share without pretending the process was
+              more automated than it really was.
             </p>
           </div>
         </div>
