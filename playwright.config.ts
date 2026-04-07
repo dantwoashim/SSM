@@ -1,5 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
+function sanitizeNodeOptions(value?: string) {
+  if (!value?.includes("--localstorage-file")) {
+    return value;
+  }
+
+  const sanitized = value
+    .split(/\s+/)
+    .filter((token) => token && !token.startsWith("--localstorage-file"))
+    .join(" ");
+
+  return sanitized || undefined;
+}
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 60_000,
@@ -21,6 +34,10 @@ export default defineConfig({
     url: "http://localhost:3001/api/readyz",
     reuseExistingServer: !process.env.CI,
     timeout: 600_000,
+    env: {
+      ...process.env,
+      NODE_OPTIONS: sanitizeNodeOptions(process.env.NODE_OPTIONS),
+    },
   },
   projects: [
     {
