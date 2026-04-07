@@ -88,6 +88,7 @@ export function formatExecutiveSummary(snapshot: ReportSnapshot): string {
     `${snapshot.companyName} was assessed for ${snapshot.targetCustomer} against ${snapshot.provider} enterprise identity rollout requirements.`,
     `${passed} of ${snapshot.scenarios.length} scoped scenarios passed, and ${executed} scenario(s) were fully executed in the current cycle.`,
     `Execution coverage in this cycle is reviewer-managed: ${manual} manual scenario(s) and ${guided} guided scenario(s).`,
+    snapshot.summary.providerValidation.supportStatement,
     pending > 0 ? `${pending} scenario(s) remain pending.` : "No scoped scenarios remain pending.",
     skipped > 0 ? `${skipped} scenario(s) were skipped and are called out in the report scope.` : "No scoped scenarios were skipped.",
     blocking > 0
@@ -122,6 +123,9 @@ export function toMarkdown(snapshot: ReportSnapshot): string {
   const warnings = snapshot.summary.publication.warnings.length > 0
     ? snapshot.summary.publication.warnings.map((warning) => `- ${warning}`).join("\n")
     : "- None";
+  const providerWarnings = snapshot.summary.providerValidation.warnings.length > 0
+    ? snapshot.summary.providerValidation.warnings.map((warning) => `- ${warning}`).join("\n")
+    : "- None";
 
-  return `# Assurance Report\n\n## Executive summary\n${snapshot.summary.executiveSummary}\n\n## Readiness coverage\n- Total scenarios: ${snapshot.summary.totalScenarios}\n- Executed: ${snapshot.summary.executedScenarios}\n- Passed: ${snapshot.summary.passedScenarios}\n- Failed: ${snapshot.summary.failedScenarios}\n- Skipped: ${snapshot.summary.skippedScenarios}\n- Pending: ${snapshot.summary.pendingScenarios}\n- Manual scenarios: ${snapshot.summary.manualScenarios}\n- Guided scenarios: ${snapshot.summary.guidedScenarios}\n- Assurance method: ${snapshot.summary.assuranceMethod}\n- Readiness score: ${snapshot.summary.readinessScore}\n\n## Publication assessment\nCan publish: ${snapshot.summary.publication.canPublish ? "yes" : "no"}\n\nBlocking reasons:\n${blockingReasons}\n\nWarnings:\n${warnings}\n\n## Scope boundaries\n${snapshot.summary.scopeBoundaries}\n\n## Residual risk\n${snapshot.summary.residualRisk}\n\n## Scenario results\n${scenarioLines}\n\n## Findings\n${findingLines || "- No findings recorded."}\n`;
+  return `# Assurance Report\n\n## Executive summary\n${snapshot.summary.executiveSummary}\n\n## Readiness coverage\n- Total scenarios: ${snapshot.summary.totalScenarios}\n- Executed: ${snapshot.summary.executedScenarios}\n- Passed: ${snapshot.summary.passedScenarios}\n- Failed: ${snapshot.summary.failedScenarios}\n- Skipped: ${snapshot.summary.skippedScenarios}\n- Pending: ${snapshot.summary.pendingScenarios}\n- Manual scenarios: ${snapshot.summary.manualScenarios}\n- Guided scenarios: ${snapshot.summary.guidedScenarios}\n- Assurance method: ${snapshot.summary.assuranceMethod}\n- Provider validation status: ${snapshot.summary.providerValidation.adapterStatus}\n- Readiness score: ${snapshot.summary.readinessScore}\n\n## Provider validation\n${snapshot.summary.providerValidation.supportStatement}\n\nWarnings:\n${providerWarnings}\n\n## Publication assessment\nCan publish: ${snapshot.summary.publication.canPublish ? "yes" : "no"}\n\nBlocking reasons:\n${blockingReasons}\n\nWarnings:\n${warnings}\n\n## Scope boundaries\n${snapshot.summary.scopeBoundaries}\n\n## Residual risk\n${snapshot.summary.residualRisk}\n\n## Scenario results\n${scenarioLines}\n\n## Findings\n${findingLines || "- No findings recorded."}\n`;
 }
