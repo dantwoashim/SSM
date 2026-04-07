@@ -42,6 +42,7 @@ From the outside, the workflow is simple.
 6. The application drafts an assurance report and exports a PDF.
 7. Publication is gated when execution coverage is incomplete or still needs explicit acknowledgment.
 8. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
+9. Suspicious text artifacts stay marked for internal review instead of being silently treated as customer-safe evidence.
 
 What it does not do is fake confidence. A half-reviewed rollout should not look like a clean go-live. The reporting path is designed to preserve that distinction, and the report carries explicit method language so the reader can see how the work was actually done.
 
@@ -80,6 +81,8 @@ In other words: this is not a toy landing page wrapped around a backlog. The use
 It is also opinionated in the right places. Customer contacts do not get internal notes. Evidence can be linked back to scenarios, findings, and reports. Background execution is optional, not required. The system can start cheap and get more formal later without turning into a rewrite.
 
 It is also stricter than a typical internal tool. Draft reports do not publish cleanly just because somebody clicked the button. Coverage, skipped work, and unresolved findings are surfaced directly in the report summary so the output stays honest when the work is partial.
+
+It is also explicit about where certainty stops. Provider labels now carry validation notes and unsupported-feature warnings so an engagement does not read more automated or complete than it really is.
 
 ## Running it locally
 
@@ -194,6 +197,7 @@ If you care about the product mechanics, start here:
 - [packages/core/src/lib/scenarios.ts](packages/core/src/lib/scenarios.ts) for the scenario library
 - [packages/service/src/data/engagements.ts](packages/service/src/data/engagements.ts) for the core engagement workflow
 - [packages/service/src/data/reports.ts](packages/service/src/data/reports.ts) for report drafting and publication
+- [packages/service/src/provider-adapters.ts](packages/service/src/provider-adapters.ts) for provider validation and support warnings
 - [apps/web/src/app/app/engagements/[id]/page.tsx](apps/web/src/app/app/engagements/[id]/page.tsx) for the operator and customer-facing engagement experience
 - [tests/e2e/app.spec.ts](tests/e2e/app.spec.ts) for the browser coverage around the critical user journeys
 
