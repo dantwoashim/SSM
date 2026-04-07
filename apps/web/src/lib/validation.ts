@@ -390,7 +390,6 @@ export const allowedAttachmentContentTypes = new Set([
   "text/plain",
   "text/csv",
   "application/json",
-  "application/zip",
 ]);
 
 export const maxAttachmentBytes = 10 * 1024 * 1024;
@@ -417,7 +416,7 @@ export function validateAttachmentUpload(file: File) {
 
   if (!allowedAttachmentContentTypes.has(file.type || "")) {
     throw new ActionValidationError(
-      "Unsupported file type. Upload PDF, image, text, CSV, JSON, or ZIP evidence only.",
+      "Unsupported file type. Upload PDF, image, text, CSV, or JSON evidence only.",
     );
   }
 }
@@ -464,10 +463,6 @@ export function validateAttachmentContent(bytes: Uint8Array, contentType: string
     throw new ActionValidationError("The uploaded WEBP file does not match its declared file type.");
   }
 
-  if (normalizedType === "application/zip" && !hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04])) {
-    throw new ActionValidationError("The uploaded ZIP file does not match its declared file type.");
-  }
-
   if (
     (normalizedType === "text/plain" || normalizedType === "text/csv" || normalizedType === "application/json")
     && !looksLikeText(bytes)
@@ -484,8 +479,4 @@ export function parseVisibility(formData: FormData) {
   }
 
   return result.data;
-}
-
-export function parseClaimedFeatures(value: string): ClaimedFeature[] {
-  return parseFeatureCsv(value);
 }
