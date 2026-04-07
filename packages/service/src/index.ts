@@ -1,6 +1,49 @@
-export * from "./data";
-export * from "./data/client";
-export * from "./env";
-export * from "./errors";
-export * from "./logger";
-export * from "./job-execution";
+export { getDb, querySql, resetDatabaseForTests, runInTransaction } from "./data/client";
+export { executeQueuedJob } from "./job-execution";
+export {
+  hasEngagementAccess,
+  listCustomerRecipientsForEngagement,
+  listOpenInvitesForEngagement,
+  listPortalDataForUser,
+  getUserById,
+} from "./data/access";
+export { audit } from "./data/audit";
+export { seedDemoData } from "./data/demo";
+export {
+  addManualScenario,
+  addMessage,
+  convertLeadToEngagement,
+  createEngagement,
+  generateTestPlan,
+  getEngagementDetail,
+  listScenariosForRun,
+  registerAttachment,
+  updateScenarioRunResult,
+} from "./data/engagements";
+export {
+  acceptInvite,
+  createInvite,
+  getInviteAcceptanceState,
+  getInviteByToken,
+} from "./data/invites";
+export { createJobRun, markJobCompleted, markJobFailed, markJobQueued, markJobRunning } from "./data/jobs";
+export { createLead } from "./data/leads";
+export {
+  emailDeliveryConfigured,
+  getNotificationById,
+  listNotificationsForEngagement,
+  queueNotification,
+  sendQueuedNotification,
+} from "./data/notifications";
+export { enforceRateLimit } from "./data/rate-limits";
+export { findAttachmentById, findReportById, generateReport, publishReport } from "./data/reports";
+export { authenticateUser, ensureFounderUser, getUserByEmail } from "./data/users";
+export { getLatestWorkerHeartbeat, recordWorkerHeartbeat } from "./data/worker-heartbeats";
+export { env, isLocalProdMode, isProductionLike } from "./env";
+export {
+  ArtifactStorageError,
+  InviteAccountMismatchError,
+  InviteRequiresSignInError,
+  AttachmentLinkageError,
+} from "./errors";
+export { logError, logEvent } from "./logger";
