@@ -17,6 +17,7 @@ import {
   reports,
   scenarioRuns as scenarioRunsTable,
 } from "./schema";
+import { assertEngagementTransition, assertReportTransition } from "./workflow";
 
 function slugifyScenarioTitle(title: string) {
   return title
@@ -50,6 +51,7 @@ function buildReportSnapshot(input: {
       id: row.scenarioId,
       title: row.title || definition?.title || row.scenarioId,
       protocol: (definition?.protocol || row.protocol) as "saml" | "scim" | "ops",
+      executionMode: row.executionMode as "manual" | "guided",
       outcome: row.outcome as "pending" | "passed" | "failed" | "skipped",
       customerSummary: row.customerVisibleSummary || row.reviewerNotes || "No customer-facing summary recorded.",
       buyerSafeReportNote: row.buyerSafeReportNote || row.customerVisibleSummary || "No buyer-safe report note recorded.",
@@ -75,6 +77,8 @@ function buildReportSnapshot(input: {
   const skippedScenarios = scenarios.filter((scenario) => scenario.outcome === "skipped").length;
   const pendingScenarios = scenarios.filter((scenario) => scenario.outcome === "pending").length;
   const executedScenarios = passedScenarios + failedScenarios;
+  const manualScenarios = scenarios.filter((scenario) => scenario.executionMode === "manual").length;
+  const guidedScenarios = scenarios.filter((scenario) => scenario.executionMode === "guided").length;
 
   const snapshot: ReportSnapshot = {
     engagementTitle: input.engagement.title,
@@ -90,6 +94,8 @@ function buildReportSnapshot(input: {
           : `${findingsView.length} finding(s) remain open in the current scope.`,
       scopeBoundaries:
         "Validation covers the scoped environment, declared scenarios, and evidence captured during the current review cycle.",
+      assuranceMethod:
+        "This report is based on reviewer-managed scenario execution and collected evidence. The application preserves scope, auditability, and publication gates, but tenant-specific verification remains operator-run.",
       readinessScore: 0,
       totalScenarios: scenarios.length,
       executedScenarios,
@@ -97,6 +103,8 @@ function buildReportSnapshot(input: {
       failedScenarios,
       skippedScenarios,
       pendingScenarios,
+      manualScenarios,
+      guidedScenarios,
       publication: {
         canPublish: false,
         requiresAcknowledgement: false,
@@ -154,6 +162,7 @@ export async function generateReport(engagementId: string, actorName: string) {
   };
 
   await db.insert(reports).values(report);
+  assertEngagementTransition(detail.engagement.status, "report-drafting");
   await db
     .update(engagements)
     .set({
@@ -177,6 +186,7 @@ export async function publishReport(reportId: string, actorName: string, acknowl
     }
 
     validateReportPublication(report.reportJson, acknowledgedWarnings);
+    assertReportTransition(report.status, "published");
 
     const timestamp = now();
     await db
@@ -186,6 +196,17 @@ export async function publishReport(reportId: string, actorName: string, acknowl
         publishedAt: timestamp,
       })
       .where(eq(reports.id, reportId));
+    const [engagement] = await db
+      .select()
+      .from(engagements)
+      .where(eq(engagements.id, report.engagementId))
+      .limit(1);
+
+    if (!engagement) {
+      throw new Error("Engagement not found.");
+    }
+
+    assertEngagementTransition(engagement.status, "report-ready");
     await db
       .update(engagements)
       .set({
