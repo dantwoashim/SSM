@@ -33,6 +33,12 @@ export type AttachmentVisibility = (typeof attachmentVisibilities)[number];
 export const attachmentStorageStatuses = ["stored", "deleted"] as const;
 export type AttachmentStorageStatus = (typeof attachmentStorageStatuses)[number];
 
+export const attachmentScanStatuses = ["clean", "manual-review-required"] as const;
+export type AttachmentScanStatus = (typeof attachmentScanStatuses)[number];
+
+export const attachmentTrustLevels = ["verified", "restricted"] as const;
+export type AttachmentTrustLevel = (typeof attachmentTrustLevels)[number];
+
 export const notificationStatuses = [
   "queued",
   "sending",
