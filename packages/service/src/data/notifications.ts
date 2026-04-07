@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import { notificationOutbox } from "./schema";
 import { env } from "../env";
 import { logError, logEvent } from "../logger";
+import { assertNotificationTransition } from "./workflow";
 
 export interface EmailDeliveryResult {
   delivered: boolean;
@@ -249,88 +250,154 @@ export async function getNotificationById(notificationId: string) {
 }
 
 export async function sendQueuedNotification(notificationId: string) {
-  const notification = await getNotificationById(notificationId);
+  const leaseOwner = `sender-${process.pid}`;
+  const leaseToken = crypto.randomUUID();
+  const db = await getDb();
+  const [current] = await db
+    .select()
+    .from(notificationOutbox)
+    .where(eq(notificationOutbox.id, notificationId))
+    .limit(1);
 
-  if (!notification) {
+  if (!current) {
     throw new Error("Notification not found.");
   }
 
-  if (notification.status === "sent") {
+  if (current.status === "sent") {
     return {
       delivered: true,
-      provider: notification.provider || "manual",
+      provider: current.provider || "manual",
       message: "Notification already delivered.",
-      providerMessageId: notification.providerMessageId,
+      providerMessageId: current.providerMessageId,
     } as EmailDeliveryResult;
   }
 
-  if (notification.status === "manual_action_required") {
+  if (current.status === "manual_action_required" || current.status === "failed_terminal") {
     return {
       delivered: false,
       provider: "manual",
-      message: notification.manualAction || notification.lastError || "Manual delivery is required.",
-      providerMessageId: notification.providerMessageId,
+      message: current.manualAction || current.lastError || "Manual delivery is required.",
+      providerMessageId: current.providerMessageId,
     };
   }
 
-  return runInTransaction(async (db) => {
-    const [current] = await db
-      .select()
-      .from(notificationOutbox)
-      .where(eq(notificationOutbox.id, notificationId))
-      .limit(1);
+  if (current.status === "sending") {
+    return {
+      delivered: false,
+      provider: current.provider || "manual",
+      message: "Notification delivery is already in progress.",
+      providerMessageId: current.providerMessageId,
+    };
+  }
 
-    if (!current) {
+  assertNotificationTransition(current.status, "sending");
+  const reservedAt = now();
+  const [reserved] = await db
+    .update(notificationOutbox)
+    .set({
+      status: "sending",
+      attemptCount: sql`${notificationOutbox.attemptCount} + 1`,
+      reservedAt,
+      leaseToken,
+      leaseOwner,
+      manualAction: null,
+      lastError: null,
+      updatedAt: reservedAt,
+    })
+    .where(and(eq(notificationOutbox.id, notificationId), eq(notificationOutbox.status, "queued")))
+    .returning();
+
+  if (!reserved) {
+    const fresh = await getNotificationById(notificationId);
+    if (!fresh) {
       throw new Error("Notification not found.");
     }
 
+    if (fresh.status === "sending") {
+      return {
+        delivered: false,
+        provider: fresh.provider || "manual",
+        message: "Notification delivery is already in progress.",
+        providerMessageId: fresh.providerMessageId,
+      };
+    }
+
+    if (fresh.status === "sent") {
+      return {
+        delivered: true,
+        provider: fresh.provider || "manual",
+        message: "Notification already delivered.",
+        providerMessageId: fresh.providerMessageId,
+      };
+    }
+
+    if (fresh.status === "manual_action_required" || fresh.status === "failed_terminal") {
+      return {
+        delivered: false,
+        provider: "manual",
+        message: fresh.manualAction || fresh.lastError || "Manual delivery is required.",
+        providerMessageId: fresh.providerMessageId,
+      };
+    }
+
+    throw new Error("Notification delivery could not acquire a send lease.");
+  }
+
+  try {
+    const delivery = await deliverEmail(buildEmail(reserved.payload as NotificationPayload));
+    const timestamp = now();
+
+    assertNotificationTransition("sending", delivery.delivered ? "sent" : "manual_action_required");
     await db
       .update(notificationOutbox)
       .set({
-        status: "sending",
-        attemptCount: (current.attemptCount || 0) + 1,
-        reservedAt: now(),
-        manualAction: null,
-        lastError: null,
-        updatedAt: now(),
+        status: delivery.delivered ? "sent" : "manual_action_required",
+        manualAction: delivery.delivered ? null : delivery.message,
+        lastError: delivery.delivered ? null : delivery.message,
+        provider: delivery.provider,
+        providerMessageId: delivery.providerMessageId,
+        updatedAt: timestamp,
+        reservedAt: null,
+        leaseToken: null,
+        leaseOwner: null,
+        deliveredAt: delivery.delivered ? timestamp : null,
       })
-      .where(and(eq(notificationOutbox.id, notification.id), eq(notificationOutbox.status, current.status)));
+      .where(
+        and(
+          eq(notificationOutbox.id, reserved.id),
+          eq(notificationOutbox.leaseToken, leaseToken),
+          eq(notificationOutbox.status, "sending"),
+        ),
+      );
 
-    try {
-      const delivery = await deliverEmail(buildEmail(current.payload as NotificationPayload));
-      const timestamp = now();
-
-      await db
-        .update(notificationOutbox)
-        .set({
-          status: delivery.delivered ? "sent" : "manual_action_required",
-          manualAction: delivery.delivered ? null : delivery.message,
-          lastError: delivery.delivered ? null : delivery.message,
-          provider: delivery.provider,
-          providerMessageId: delivery.providerMessageId,
-          updatedAt: timestamp,
-          reservedAt: null,
-          deliveredAt: delivery.delivered ? timestamp : null,
-        })
-        .where(eq(notificationOutbox.id, notification.id));
-
-      return delivery;
-    } catch (error) {
-      const nextAttemptCount = (current.attemptCount || 0) + 1;
-      const terminal = nextAttemptCount >= 3;
-      await db
-        .update(notificationOutbox)
-        .set({
-          status: terminal ? "failed_terminal" : "queued",
-          lastError: error instanceof Error ? error.message : "Notification delivery failed.",
-          manualAction: terminal ? "Delivery failed repeatedly. Review the provider response and send this notification manually." : null,
-          updatedAt: now(),
-          reservedAt: null,
-        })
-        .where(eq(notificationOutbox.id, notification.id));
-      throw error;
-    }
-  });
+    return delivery;
+  } catch (error) {
+    const nextAttemptCount = (reserved.attemptCount || 0);
+    const terminal = nextAttemptCount >= 3;
+    const nextStatus = terminal ? "failed_terminal" : "queued";
+    assertNotificationTransition("sending", nextStatus);
+    await db
+      .update(notificationOutbox)
+      .set({
+        status: nextStatus,
+        lastError: error instanceof Error ? error.message : "Notification delivery failed.",
+        manualAction: terminal
+          ? "Delivery failed repeatedly. Review the provider response and send this notification manually."
+          : null,
+        updatedAt: now(),
+        reservedAt: null,
+        leaseToken: null,
+        leaseOwner: null,
+      })
+      .where(
+        and(
+          eq(notificationOutbox.id, reserved.id),
+          eq(notificationOutbox.leaseToken, leaseToken),
+          eq(notificationOutbox.status, "sending"),
+        ),
+      );
+    throw error;
+  }
 }
 
 export function emailDeliveryConfigured() {
