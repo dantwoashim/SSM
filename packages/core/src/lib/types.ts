@@ -114,6 +114,7 @@ export interface ReportSummary {
   executiveSummary: string;
   residualRisk: string;
   scopeBoundaries: string;
+  assuranceMethod: string;
   readinessScore: number;
   totalScenarios: number;
   executedScenarios: number;
@@ -121,6 +122,8 @@ export interface ReportSummary {
   failedScenarios: number;
   skippedScenarios: number;
   pendingScenarios: number;
+  manualScenarios: number;
+  guidedScenarios: number;
   publication: {
     canPublish: boolean;
     requiresAcknowledgement: boolean;
@@ -140,6 +143,7 @@ export interface ReportSnapshot {
     id: string;
     title: string;
     protocol: ScenarioProtocol;
+    executionMode: ScenarioExecutionMode;
     outcome: ScenarioOutcome;
     customerSummary: string;
     buyerSafeReportNote: string;
