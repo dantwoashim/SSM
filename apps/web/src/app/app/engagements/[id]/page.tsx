@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  buildProviderValidationSummary,
   getEngagementDetail,
   hasEngagementAccess,
   listNotificationsForEngagement,
@@ -54,6 +55,7 @@ export default async function EngagementDetailPage({
   }
 
   const founderView = session.role === "founder";
+  const providerValidation = buildProviderValidationSummary(detail.engagement);
   const scenarioRows: ScenarioReview[] = detail.latestRun
     ? await listScenariosForRun(detail.latestRun.id)
     : [];
@@ -79,7 +81,13 @@ export default async function EngagementDetailPage({
 
   return (
     <div className="detail-grid">
-      <OverviewSection engagement={detail.engagement} founderView={founderView} />
+      <OverviewSection
+        engagement={{
+          ...detail.engagement,
+          providerValidation,
+        }}
+        founderView={founderView}
+      />
       <ScenarioSection
         founderView={founderView}
         engagementId={detail.engagement.id}
