@@ -30,6 +30,9 @@ jobs:
       - name: Verify repository
         run: npm run verify
 
+      - name: Smoke source bundle
+        run: npm run smoke:source-bundle
+
       - name: Build Docker image
         run: npm run smoke:docker
 

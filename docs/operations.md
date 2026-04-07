@@ -29,6 +29,7 @@ Run the full verification stack before changing the deployment or sharing a new 
 
 ```powershell
 npm run verify
+npm run smoke:source-bundle
 npm run package:source
 ```
 

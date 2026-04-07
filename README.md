@@ -153,6 +153,7 @@ From the repository root:
 npm run dev
 npm run seed
 npm run verify
+npm run smoke:source-bundle
 npm run lint
 npm run typecheck
 npm run test
@@ -187,6 +188,7 @@ No redesign is required to make that move. The workflow stays the same.
 For the hosted path, the repository now includes three separate credibility checks:
 
 - `npm run verify` for the source tree
+- `npm run smoke:source-bundle` for a clean tracked-files-only install and build
 - `npm run smoke:docker` for the packaged container image
 - `npm run package:source` for the clean source bundle built from tracked files only
 

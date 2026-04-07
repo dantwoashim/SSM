@@ -58,10 +58,13 @@ Before a hosted deploy, run:
 ```powershell
 npm run verify
 npm run smoke:docker
+npm run smoke:source-bundle
 npm run package:source
 ```
 
 `npm run smoke:start` boots the production server with local-production safeguards and verifies `healthz`, `readyz`, and the login route before the deploy is treated as credible.
+
+`npm run smoke:source-bundle` rebuilds trust from the release artifact itself by creating the clean Git-tracked bundle, extracting it into a throwaway directory, reinstalling dependencies, and proving that typecheck and build still succeed there.
 
 `npm run smoke:docker` proves that the packaged container image can boot and answer the same baseline endpoints.
 
