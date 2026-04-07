@@ -1,23 +1,46 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
 import { jobRuns } from "./schema";
+import { assertJobRunTransition } from "./workflow";
 
 export async function createJobRun(input: {
   engagementId?: string | null;
   name: string;
   actorName: string;
   payload: Record<string, unknown>;
+  idempotencyKey?: string | null;
 }) {
   const db = await getDb();
   const timestamp = now();
+  if (input.idempotencyKey) {
+    const [existing] = await db
+      .select()
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.idempotencyKey, input.idempotencyKey),
+          inArray(jobRuns.status, ["queued", "running"]),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      return {
+        jobRun: existing,
+        created: false as const,
+      };
+    }
+  }
+
   const jobRun = {
     id: makeId("job"),
     engagementId: input.engagementId || null,
     name: input.name,
     status: "queued",
     queueId: null,
+    idempotencyKey: input.idempotencyKey || null,
     payload: input.payload,
     result: null,
     error: null,
@@ -30,12 +53,23 @@ export async function createJobRun(input: {
   await audit(input.actorName, "created_job_run", "job_run", jobRun.id, {
     engagementId: input.engagementId,
     name: input.name,
+    idempotencyKey: input.idempotencyKey || null,
   });
-  return jobRun;
+  return {
+    jobRun,
+    created: true as const,
+  };
 }
 
 export async function markJobQueued(jobRunId: string, queueId: string | null) {
   const db = await getDb();
+  const [current] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobRunId)).limit(1);
+
+  if (!current) {
+    throw new Error("Job run not found.");
+  }
+
+  assertJobRunTransition(current.status, "queued");
   await db
     .update(jobRuns)
     .set({
@@ -48,6 +82,13 @@ export async function markJobQueued(jobRunId: string, queueId: string | null) {
 
 export async function markJobRunning(jobRunId: string) {
   const db = await getDb();
+  const [current] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobRunId)).limit(1);
+
+  if (!current) {
+    throw new Error("Job run not found.");
+  }
+
+  assertJobRunTransition(current.status, "running");
   await db
     .update(jobRuns)
     .set({
@@ -60,6 +101,13 @@ export async function markJobRunning(jobRunId: string) {
 export async function markJobCompleted(jobRunId: string, result: Record<string, unknown> = {}) {
   const db = await getDb();
   const timestamp = now();
+  const [current] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobRunId)).limit(1);
+
+  if (!current) {
+    throw new Error("Job run not found.");
+  }
+
+  assertJobRunTransition(current.status, "completed");
   await db
     .update(jobRuns)
     .set({
@@ -74,6 +122,13 @@ export async function markJobCompleted(jobRunId: string, result: Record<string, 
 
 export async function markJobFailed(jobRunId: string, errorMessage: string) {
   const db = await getDb();
+  const [current] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobRunId)).limit(1);
+
+  if (!current) {
+    throw new Error("Job run not found.");
+  }
+
+  assertJobRunTransition(current.status, "failed");
   await db
     .update(jobRuns)
     .set({
