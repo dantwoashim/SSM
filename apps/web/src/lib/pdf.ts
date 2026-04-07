@@ -68,6 +68,18 @@ export async function renderReportPdf(snapshot: ReportSnapshot) {
   }
 
   cursorY -= 8;
+  drawLine("Provider Validation", { bold: true, size: 14 });
+  drawLine(`Status: ${snapshot.summary.providerValidation.adapterStatus}`);
+  for (const line of wrapText(snapshot.summary.providerValidation.supportStatement)) {
+    drawLine(line);
+  }
+  for (const warning of snapshot.summary.providerValidation.warnings) {
+    for (const line of wrapText(`Warning: ${warning}`)) {
+      drawLine(line);
+    }
+  }
+
+  cursorY -= 8;
   drawLine("Scope Boundaries", { bold: true, size: 14 });
   for (const line of wrapText(snapshot.summary.scopeBoundaries)) {
     drawLine(line);
