@@ -5,7 +5,7 @@ import {
   scenarioLibrary,
   selectScenarios,
 } from "@assurance/core";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb, runInTransaction } from "./client";
 import { audit } from "./audit";
 import { makeId, now } from "./helpers";
@@ -275,7 +275,7 @@ export async function getEngagementDetail(engagementId: string) {
     messageRows,
     reportRows,
     jobRows,
-    attachmentRows,
+    attachmentRows: attachmentRows.filter((attachment: typeof attachments.$inferSelect) => !attachment.deletedAt),
   };
 }
 
@@ -676,6 +676,10 @@ export async function registerAttachment(input: {
   checksumSha256?: string | null;
   contentType: string;
   size: number;
+  scanStatus: "clean" | "manual-review-required";
+  scanSummary: string;
+  trustLevel: "verified" | "restricted";
+  retentionUntil: string;
   scenarioRunId?: string | null;
   findingId?: string | null;
   reportId?: string | null;
@@ -739,12 +743,75 @@ export async function registerAttachment(input: {
       storageKey: input.storageKey,
       checksumSha256: input.checksumSha256 || null,
       storageStatus: "stored",
+      scanStatus: input.scanStatus,
+      scanSummary: input.scanSummary,
+      trustLevel: input.trustLevel,
       contentType: input.contentType,
       size: input.size,
       createdAt: now(),
+      retentionUntil: input.retentionUntil,
       deletedAt: null,
+      deletedReason: null,
     };
     await db.insert(attachments).values(attachment);
+
+    if (attachment.scenarioRunId) {
+      const attachmentEvidenceJson = JSON.stringify([attachment.id]);
+      await db
+        .update(scenarioRuns)
+        .set({
+          evidence: sql`CASE
+            WHEN COALESCE(${scenarioRuns.evidence}, '[]'::jsonb) @> ${attachmentEvidenceJson}::jsonb
+              THEN COALESCE(${scenarioRuns.evidence}, '[]'::jsonb)
+            ELSE COALESCE(${scenarioRuns.evidence}, '[]'::jsonb) || ${attachmentEvidenceJson}::jsonb
+          END`,
+          updatedAt: now(),
+        })
+        .where(eq(scenarioRuns.id, attachment.scenarioRunId));
+    }
+    await audit(input.uploadedBy, "uploaded_attachment", "attachment", attachment.id, {
+      engagementId: input.engagementId,
+      fileName: input.fileName,
+      visibility: input.visibility,
+      scanStatus: input.scanStatus,
+      trustLevel: input.trustLevel,
+      scenarioRunId: input.scenarioRunId || null,
+      findingId: input.findingId || null,
+      reportId: input.reportId || null,
+    }, db);
+    return attachment;
+  });
+}
+
+export async function softDeleteAttachment(input: {
+  attachmentId: string;
+  actorName: string;
+  reason: string;
+}) {
+  return runInTransaction(async (db) => {
+    const [attachment] = await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, input.attachmentId))
+      .limit(1);
+
+    if (!attachment) {
+      throw new Error("Attachment not found.");
+    }
+
+    if (attachment.deletedAt) {
+      return attachment;
+    }
+
+    const timestamp = now();
+    await db
+      .update(attachments)
+      .set({
+        storageStatus: "deleted",
+        deletedAt: timestamp,
+        deletedReason: input.reason,
+      })
+      .where(eq(attachments.id, input.attachmentId));
 
     if (attachment.scenarioRunId) {
       const [scenarioRun] = await db
@@ -754,27 +821,28 @@ export async function registerAttachment(input: {
         .limit(1);
 
       if (scenarioRun) {
-        const evidence = Array.isArray(scenarioRun.evidence) ? scenarioRun.evidence : [];
-        if (!evidence.includes(attachment.id)) {
-          await db
-            .update(scenarioRuns)
-            .set({
-              evidence: [...evidence, attachment.id],
-              updatedAt: now(),
-            })
-            .where(eq(scenarioRuns.id, attachment.scenarioRunId));
-        }
+        const nextEvidence = (scenarioRun.evidence || []).filter((id: string) => id !== attachment.id);
+        await db
+          .update(scenarioRuns)
+          .set({
+            evidence: nextEvidence,
+            updatedAt: timestamp,
+          })
+          .where(eq(scenarioRuns.id, attachment.scenarioRunId));
       }
     }
-    await audit(input.uploadedBy, "uploaded_attachment", "attachment", attachment.id, {
-      engagementId: input.engagementId,
-      fileName: input.fileName,
-      visibility: input.visibility,
-      scenarioRunId: input.scenarioRunId || null,
-      findingId: input.findingId || null,
-      reportId: input.reportId || null,
+
+    await audit(input.actorName, "deleted_attachment", "attachment", attachment.id, {
+      engagementId: attachment.engagementId,
+      reason: input.reason,
     }, db);
-    return attachment;
+
+    return {
+      ...attachment,
+      storageStatus: "deleted" as const,
+      deletedAt: timestamp,
+      deletedReason: input.reason,
+    };
   });
 }
 
