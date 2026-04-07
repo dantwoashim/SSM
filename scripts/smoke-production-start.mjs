@@ -17,6 +17,17 @@ const baseEnv = {
   ASSURANCE_STATE_DIR: stateRoot,
 };
 
+if (baseEnv.NODE_OPTIONS?.includes("--localstorage-file")) {
+  baseEnv.NODE_OPTIONS = baseEnv.NODE_OPTIONS
+    .split(/\s+/)
+    .filter((token) => token && !token.startsWith("--localstorage-file"))
+    .join(" ");
+
+  if (!baseEnv.NODE_OPTIONS) {
+    delete baseEnv.NODE_OPTIONS;
+  }
+}
+
 function run(command, args, env = baseEnv) {
   return new Promise((resolve, reject) => {
     const child = process.platform === "win32"
