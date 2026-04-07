@@ -13,6 +13,16 @@ const baseSampleReportSnapshot: ReportSnapshot = {
     scopeBoundaries: "Validation covered staging environment, a single customer tenant, and founder-observed retest evidence only.",
     assuranceMethod:
       "This report is based on reviewer-managed scenario execution and collected evidence. The application packages the work, but the operator performs the tenant-specific validation.",
+    providerValidation: {
+      adapterStatus: "manual-only",
+      supportStatement:
+        "Current Entra coverage is reviewer-managed. The product preserves scope, evidence, and publication controls, but tenant validation is still operator-run.",
+      warnings: [
+        "The Entra label reflects scenario coverage and checklist validation, not live tenant introspection.",
+      ],
+      unsupportedFeatures: [],
+      validatedFeatures: ["sp-initiated-sso", "scim-deactivate", "group-role-mapping"],
+    },
     readinessScore: 0,
     totalScenarios: 3,
     executedScenarios: 3,

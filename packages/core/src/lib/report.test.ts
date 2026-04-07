@@ -13,6 +13,13 @@ const snapshot: ReportSnapshot = {
     residualRisk: "One finding remains open in scope.",
     scopeBoundaries: "Staging tenant only.",
     assuranceMethod: "This report is based on reviewer-managed scenario execution and collected evidence.",
+    providerValidation: {
+      adapterStatus: "manual-only",
+      supportStatement: "Current Entra coverage is reviewer-managed.",
+      warnings: ["The Entra label reflects scoped checklist coverage, not live tenant introspection."],
+      unsupportedFeatures: [],
+      validatedFeatures: ["sp-initiated-sso", "group-role-mapping"],
+    },
     readinessScore: 0,
     totalScenarios: 2,
     executedScenarios: 2,
@@ -75,6 +82,7 @@ describe("report helpers", () => {
     expect(summary).toContain("1 of 2 scoped scenarios passed");
     expect(summary).toContain("1 blocking issue(s) remain before go-live.");
     expect(summary).toContain("reviewer-managed");
+    expect(summary).toContain("Current Entra coverage is reviewer-managed.");
   });
 
   it("blocks publication when coverage is pending or skipped too heavily", () => {
@@ -108,6 +116,7 @@ describe("report helpers", () => {
 
     expect(markdown).toContain("# Assurance Report");
     expect(markdown).toContain("## Publication assessment");
+    expect(markdown).toContain("## Provider validation");
     expect(markdown).toContain("## Scenario results");
     expect(markdown).toContain("Group role mapping drift");
     expect(markdown).toContain("evidence: 2");
