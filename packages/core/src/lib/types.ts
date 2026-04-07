@@ -94,6 +94,14 @@ export interface IdpProfile {
   notes: string;
 }
 
+export interface ProviderValidationSummary {
+  adapterStatus: "manual-only" | "guided-checklist" | "unsupported";
+  supportStatement: string;
+  warnings: string[];
+  unsupportedFeatures: ClaimedFeature[];
+  validatedFeatures: ClaimedFeature[];
+}
+
 export interface TestPlanScenario {
   scenarioId: string;
   title: string;
@@ -115,6 +123,7 @@ export interface ReportSummary {
   residualRisk: string;
   scopeBoundaries: string;
   assuranceMethod: string;
+  providerValidation: ProviderValidationSummary;
   readinessScore: number;
   totalScenarios: number;
   executedScenarios: number;
