@@ -87,7 +87,6 @@ It is also explicit about where certainty stops. Provider labels now carry valid
 ## Portfolio docs
 
 - [Case study](docs/CASE_STUDY.md)
-- [Demo script](docs/DEMO_SCRIPT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment notes](docs/deployment.md)
 - [Operations notes](docs/operations.md)
