@@ -84,6 +84,14 @@ It is also stricter than a typical internal tool. Draft reports do not publish c
 
 It is also explicit about where certainty stops. Provider labels now carry validation notes and unsupported-feature warnings so an engagement does not read more automated or complete than it really is.
 
+## Portfolio docs
+
+- [Case study](docs/CASE_STUDY.md)
+- [Demo script](docs/DEMO_SCRIPT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Deployment notes](docs/deployment.md)
+- [Operations notes](docs/operations.md)
+
 ## Running it locally
 
 Requirements:
