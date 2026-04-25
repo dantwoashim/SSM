@@ -10,7 +10,7 @@
   "dependencies": {
     "@assurance/core": "*",
     "@assurance/service": "*",
-    "bullmq": "^5.46.1",
+    "bullmq": "^5.76.2",
     "ioredis": "^5.6.1",
     "tsx": "^4.19.3"
   },
