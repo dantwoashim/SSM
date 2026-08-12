@@ -1,105 +1,71 @@
 # Identity Go-Live Assurance
 
-Most enterprise deals do not die because a vendor forgot to check a box on a pricing page.
+Identity Go-Live Assurance is a working application for running SSO and SCIM
+readiness engagements. It turns an intake request into a scoped test plan,
+recorded evidence, findings, and a report that can be shared with a buyer.
 
-They die when the buyer's identity team tries to wire the product into the real world and finds the messy parts: group mapping that does not line up with roles, SCIM deprovisioning that never quite lands, JIT provisioning with duplicate users, IdP-initiated login edge cases, tenant isolation problems, certificate rollover surprises, and all the quiet assumptions hiding behind "we support SAML and SCIM."
+[Architecture](docs/ARCHITECTURE.md) |
+[Case study](docs/CASE_STUDY.md) |
+[Deployment](docs/deployment.md) |
+[Security](docs/security/security-overview.md)
 
-This repository is built around that moment.
+## Product workflow
 
-Identity Go-Live Assurance is the application behind a service business for enterprise identity readiness. It gives a delivery team one place to intake a customer request, open an engagement, run a test plan, collect evidence, record findings, generate a buyer-safe report, and share only the right information with the customer.
-
-The output is not another dashboard nobody asked for. The output is the report that gets forwarded into the procurement thread.
-
-This repository will make the most sense to:
-
-- engineers building or evaluating enterprise identity workflows
-- founders moving a SaaS product upmarket
-- solutions teams that need a cleaner way to run identity readiness work
-
-## Why this exists
-
-Enterprise identity work has an unpleasant shape.
-
-The protocols are standardized enough for everyone to say they support them, but not standardized enough for real rollouts to behave the same way across tenants, providers, group models, and customer policies. That gap is where deals slow down.
-
-This codebase exists to close that gap with something concrete:
-
-- a scoped engagement
-- a scenario plan
-- recorded evidence
-- structured findings
-- a report a buyer can actually use
-
-## What the product does
-
-From the outside, the workflow is simple.
-
-1. A SaaS vendor or implementation lead submits an intake request.
-2. The request becomes a named engagement for a specific customer and IdP.
-3. The system builds a plan from the required identity features.
+1. A vendor or delivery lead submits an identity-readiness request.
+2. An operator creates an engagement for the customer and identity provider.
+3. Claimed capabilities become a concrete scenario plan.
 4. Reviewers execute scenarios, attach evidence, and record outcomes.
-5. Failed scenarios become findings with remediation guidance.
-6. The application drafts an assurance report and exports a PDF.
-7. Publication is gated when execution coverage is incomplete or still needs explicit acknowledgment.
-8. Customer contacts get a restricted portal view with shared artifacts and published reports, not internal notes.
-9. Suspicious text artifacts stay marked for internal review instead of being silently treated as customer-safe evidence.
+5. Failed checks become findings with ownership and remediation guidance.
+6. The system drafts a buyer-safe report and exports it as PDF.
+7. Publication checks execution coverage and unresolved work.
+8. Invited customer contacts receive a restricted view of shared artifacts and
+   published reports.
 
-What it does not do is fake confidence. A half-reviewed rollout should not look like a clean go-live. The reporting path is designed to preserve that distinction, and the report carries explicit method language so the reader can see how the work was actually done.
+The application structures human-led assurance work. It does not claim to
+autonomously certify a live Okta, Entra, Google, or custom identity tenant.
 
-That is the whole point of the product. It should be possible to go from "the buyer needs proof this week" to a defensible package without juggling spreadsheets, screenshots, and email threads.
+## Implemented capabilities
 
-## What lives in this repository
+- public intake and founder-operated engagement management;
+- reusable SSO, SAML, OIDC, SCIM, JIT, group-mapping, and lifecycle scenarios;
+- evidence uploads with explicit customer visibility;
+- findings, messages, report drafts, publication checks, and PDF output;
+- time-bound customer invitations and scoped portal access;
+- audit events, rate limits, request validation, and storage boundaries;
+- provider notes that expose unsupported or manually verified behavior;
+- inline jobs for simple deployments and an optional Redis-backed worker;
+- PGlite for local use and Postgres for hosted deployments;
+- local or S3-compatible artifact storage;
+- health, readiness, operational, and browser verification paths.
 
-The repository is split by responsibility.
+## Architecture
 
-- `apps/web`
-  The actual product surface: intake, founder portal, customer portal, reports, attachments, invites, and API routes.
+```text
+apps/web
+  -> packages/service
+       -> Postgres or PGlite
+       -> local or S3-compatible storage
+       -> inline jobs or Redis/BullMQ
+  -> packages/core
+packages/worker
+  -> packages/service
+```
 
-- `packages/core`
-  Shared domain logic: scenario definitions, identity feature taxonomy, report scoring, report rendering helpers, and sample report data.
+| Path | Responsibility |
+| --- | --- |
+| `apps/web` | Next.js product, portals, API routes, PDF delivery, and seed command |
+| `packages/core` | Domain types, scenario library, scoring, and report logic |
+| `packages/service` | Access control, persistence, migrations, workflows, and audit records |
+| `packages/worker` | Optional background execution |
+| `tests/e2e` | Critical browser journeys |
+| `scripts` | Packaging, hygiene, and deployment smoke tests |
 
-- `packages/service`
-  The application and data layer: migrations, database access, audit logging, access control, rate limits, service workflows, and direct job execution.
-
-- `packages/worker`
-  Optional queue-backed execution for deployments that use Redis/BullMQ.
-
-- `tests/e2e`
-  Browser coverage for the paths that matter: intake, engagement creation, test-plan generation, invite flow, artifact access, and customer-scoped visibility.
-
-## What is good about this system
-
-It is built for the real operating constraints of an early product.
-
-- It runs in a cheap founder-operated mode without pretending that everything must be enterprise infrastructure on day one.
-- It keeps the domain model explicit. The scenario library, finding structure, report shape, and visibility rules are first-class.
-- It treats audit trails and scoped access as product features, not cleanup work.
-- It supports a low-cost path now and a more formal deployment path later without changing the product model.
-
-In other words: this is not a toy landing page wrapped around a backlog. The useful part is already here.
-
-It is also opinionated in the right places. Customer contacts do not get internal notes. Evidence can be linked back to scenarios, findings, and reports. Background execution is optional, not required. The system can start cheap and get more formal later without turning into a rewrite.
-
-It is also stricter than a typical internal tool. Draft reports do not publish cleanly just because somebody clicked the button. Coverage, skipped work, and unresolved findings are surfaced directly in the report summary so the output stays honest when the work is partial.
-
-It is also explicit about where certainty stops. Provider labels now carry validation notes and unsupported-feature warnings so an engagement does not read more automated or complete than it really is.
-
-## Portfolio docs
-
-- [Case study](docs/CASE_STUDY.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Deployment notes](docs/deployment.md)
-- [Operations notes](docs/operations.md)
-
-## Running it locally
+## Run locally
 
 Requirements:
 
-- Node.js 22+
-- npm
-- PowerShell if you want the bundled Windows helper scripts
-
-Quick start:
+- Node.js 22 or newer;
+- npm.
 
 ```powershell
 npm ci
@@ -108,123 +74,63 @@ npm run seed
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000).
+Open `http://localhost:3000`. The seed command creates a founder account and a
+sample engagement so the complete workflow can be reviewed immediately.
 
-The seed step creates a founder account and sample engagement data so you can walk the system end to end without fabricating records by hand.
+The minimum local configuration is documented in
+[`apps/web/.env.example`](apps/web/.env.example). With no `DATABASE_URL`, the
+service uses local PGlite. With no `REDIS_URL`, jobs run inline. Object storage
+and email delivery also have local/manual paths for early deployments.
 
-## Five-minute tour
+## Verify
 
-If you want to understand the product quickly, do this:
-
-1. Run the seed step.
-2. Open the founder portal.
-3. Inspect the seeded engagement.
-4. Generate a test plan.
-5. Review a scenario, attach evidence, and draft the report.
-6. Open the customer access section and issue an invite.
-
-That path shows the product's center of gravity better than reading every route in the codebase. You will see the engagement model, the evidence model, the visibility boundaries, and the report output in a few minutes.
-
-If you are evaluating whether the product is honest, pause at the report section before you publish. The publication gate is one of the most important parts of the system.
-
-If you are evaluating whether the product is already a fully autonomous verification engine, it is not. The current strength of the system is structured manual assurance work with explicit scoping, evidence handling, and publication discipline.
-
-## Environment model
-
-The minimum local configuration lives in [apps/web/.env.example](apps/web/.env.example).
-
-For local use, these values matter:
-
-- `APP_URL`
-- `SESSION_SECRET`
-- `FOUNDER_EMAIL`
-- `FOUNDER_PASSWORD`
-- `FOUNDER_NAME`
-
-The rest is optional in founder-operated mode.
-
-The system is intentionally tolerant of missing infrastructure in that mode:
-
-- no `DATABASE_URL` means local PGlite
-- no `REDIS_URL` means inline execution
-- no email provider means manual invite sharing
-- no S3-compatible storage means local artifact storage
-
-That is deliberate. The product should still work before the infra budget shows up.
-
-## Common commands
-
-From the repository root:
-
-```powershell
-npm run dev
-npm run seed
+```bash
 npm run verify
-npm run smoke:source-bundle
-npm run lint
-npm run typecheck
-npm run test
-npm run test:e2e
-npm run build
-npm run smoke:docker
-npm run package:source
-npm run worker
 ```
 
-## Deployment notes
+The main gate runs linting, type checks, workspace tests, storage smoke tests,
+the production build, a packaged start smoke test, Playwright, and release
+hygiene checks.
 
-There are two realistic operating modes.
+Useful focused commands:
 
-### Founder-operated mode
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run test:e2e
+npm run build
+npm run smoke:source-bundle
+npm run smoke:docker
+npm run package:source
+```
 
-Run it on your own machine, optionally publish it through Cloudflare Tunnel, and use it directly for pilots and early delivery. That path is cheap and honest about the tradeoff: the machine is the server.
+## Deployment
 
-See [docs/deployment/cloudflare-tunnel-free.md](docs/deployment/cloudflare-tunnel-free.md).
+The same workflow supports two operating modes:
 
-### Hosted mode
+- **Founder-operated:** local PGlite, inline jobs, local artifact storage, and
+  optional Cloudflare Tunnel exposure for controlled pilots.
+- **Hosted:** Postgres, Redis/BullMQ, S3-compatible storage, and transactional
+  email.
 
-When uptime matters more than thrift, the codebase already supports the usual upgrades:
+See [`docs/deployment.md`](docs/deployment.md) and the
+[Cloudflare Tunnel guide](docs/deployment/cloudflare-tunnel-free.md) for the
+actual configuration paths.
 
-- Postgres instead of local PGlite
-- Redis-backed workers instead of inline execution
-- S3-compatible object storage instead of local disk
-- transactional email delivery
+## Evaluation path
 
-No redesign is required to make that move. The workflow stays the same.
+For a short technical review, inspect:
 
-For the hosted path, the repository now includes three separate credibility checks:
+- [`packages/core/src/lib/scenarios.ts`](packages/core/src/lib/scenarios.ts)
+- [`packages/service/src/data/engagements.ts`](packages/service/src/data/engagements.ts)
+- [`packages/service/src/data/reports.ts`](packages/service/src/data/reports.ts)
+- [`packages/service/src/provider-adapters.ts`](packages/service/src/provider-adapters.ts)
+- [`tests/e2e/app.spec.ts`](tests/e2e/app.spec.ts)
 
-- `npm run verify` for the source tree
-- `npm run smoke:source-bundle` for a clean tracked-files-only install and build
-- `npm run smoke:docker` for the packaged container image
-- `npm run package:source` for the clean source bundle built from tracked files only
+The seeded data and sample report are demonstration records. They are labelled
+as such and do not represent completed customer assessments.
 
-## What to look at if you are evaluating the implementation
+## License
 
-If you care about the product mechanics, start here:
-
-- [packages/core/src/lib/scenarios.ts](packages/core/src/lib/scenarios.ts) for the scenario library
-- [packages/service/src/data/engagements.ts](packages/service/src/data/engagements.ts) for the core engagement workflow
-- [packages/service/src/data/reports.ts](packages/service/src/data/reports.ts) for report drafting and publication
-- [packages/service/src/provider-adapters.ts](packages/service/src/provider-adapters.ts) for provider validation and support warnings
-- [apps/web/src/app/app/engagements/[id]/page.tsx](apps/web/src/app/app/engagements/[id]/page.tsx) for the operator and customer-facing engagement experience
-- [tests/e2e/app.spec.ts](tests/e2e/app.spec.ts) for the browser coverage around the critical user journeys
-
-That list is also a decent map of the product promise: plan the work, record the evidence, separate internal judgment from customer-safe output, and publish only when the result is defensible.
-
-## Documentation
-
-If you want the short version first, read these:
-
-- [docs/deployment.md](docs/deployment.md)
-- [docs/deployment/cloudflare-tunnel-free.md](docs/deployment/cloudflare-tunnel-free.md)
-- [docs/operations.md](docs/operations.md)
-- [docs/security/security-overview.md](docs/security/security-overview.md)
-
-## Current state
-
-This repository is a working product for a service-led business.
-
-It does not pretend the delivery work is fully automated. It does the more important thing: it gives that work a rigorous operating system, a clean evidence trail, and a report that can survive contact with a buyer's identity team.
-
-The seeded records and sample report pages are clearly marked demo content. They exist so you can evaluate the workflow quickly, not to imply that the repository ships with live customer evidence.
+MIT. See [`LICENSE`](LICENSE).
