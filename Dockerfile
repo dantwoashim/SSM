@@ -20,7 +20,6 @@ ENV PORT=3000
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/apps/web ./apps/web
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/packages/core ./packages/core
 COPY --from=builder /app/packages/service ./packages/service
 EXPOSE 3000
