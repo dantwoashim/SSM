@@ -1,8 +1,18 @@
-# Identity Go-Live Assurance
+# SSM — Identity Go-Live Assurance (full application)
 
-Identity Go-Live Assurance is a working application for running SSO and SCIM
-readiness engagements. It turns an intake request into a scoped test plan,
-recorded evidence, findings, and a report that can be shared with a buyer.
+SSM is the working application for running SSO and SCIM readiness
+engagements. It turns an intake request into a scoped test plan, recorded
+evidence, findings, and a report that can be shared with a buyer.
+
+> **Related repository:**
+> [`dantwoashim/Identity_Go-Live_Assurance`](https://github.com/dantwoashim/Identity_Go-Live_Assurance)
+> is the standalone, Apache-2.0 *community core library* (domain types,
+> scenario catalog, readiness scoring, Markdown report generation). This
+> repository is the full product built around that domain model: web portal,
+> HTTP service, background worker, Postgres/PGlite persistence, evidence
+> storage, customer invitations, and PDF publication. The two repositories do
+> not share a package dependency; `packages/core` here is the application's own
+> domain layer.
 
 [Architecture](docs/ARCHITECTURE.md) |
 [Case study](docs/CASE_STUDY.md) |
